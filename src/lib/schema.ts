@@ -1,0 +1,49 @@
+import { pgTable, uuid, text, real, timestamp, pgEnum } from 'drizzle-orm/pg-core'
+
+export const itemTypeEnum = pgEnum('item_type', ['link', 'note'])
+export const statusEnum = pgEnum('status', ['pending', 'done'])
+
+export const boards = pgTable('boards', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  name: text('name').notNull(),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+  updatedAt: timestamp('updated_at').notNull().defaultNow(),
+})
+
+export const items = pgTable('items', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  boardId: uuid('board_id')
+    .notNull()
+    .references(() => boards.id, { onDelete: 'cascade' }),
+  type: itemTypeEnum('type').notNull(),
+
+  // Link fields (scraped)
+  url: text('url'),
+  scrapedTitle: text('scraped_title'),
+  scrapedDescription: text('scraped_description'),
+  scrapedThumbnail: text('scraped_thumbnail'),
+
+  // User overrides
+  customTitle: text('custom_title'),
+  customDescription: text('custom_description'),
+  customThumbnail: text('custom_thumbnail'),
+
+  // Note field
+  noteContent: text('note_content'),
+
+  // Canvas position
+  x: real('x').notNull().default(100),
+  y: real('y').notNull().default(100),
+  width: real('width').notNull().default(320),
+  height: real('height').notNull().default(200),
+  rotation: real('rotation').notNull().default(0),
+
+  status: statusEnum('status').notNull().default('pending'),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+  updatedAt: timestamp('updated_at').notNull().defaultNow(),
+})
+
+export type Board = typeof boards.$inferSelect
+export type NewBoard = typeof boards.$inferInsert
+export type Item = typeof items.$inferSelect
+export type NewItem = typeof items.$inferInsert

@@ -5,6 +5,17 @@
 
 @custom-variant dark (&:is(.dark *));
 
+@keyframes card-highlight {
+  0%, 100% { box-shadow: 0 0 0 0px oklch(0.623 0.214 259.1 / 0); }
+  25%       { box-shadow: 0 0 0 3px oklch(0.623 0.214 259.1 / 0.7); }
+  50%       { box-shadow: 0 0 0 1px oklch(0.623 0.214 259.1 / 0.3); }
+  75%       { box-shadow: 0 0 0 3px oklch(0.623 0.214 259.1 / 0.7); }
+}
+
+.card-highlight {
+  animation: card-highlight 0.8s ease-in-out;
+}
+
 @theme {
   --font-sans: 'Inter', system-ui, sans-serif;
 }
@@ -148,4 +159,28 @@ body {
   html {
     @apply font-sans;
   }
+}
+
+/* Force react-tweet to always render in light mode.
+   Target [data-theme="dark"] explicitly to win the specificity battle
+   when the system colour scheme is dark. */
+.tweet-light .react-tweet-theme,
+.tweet-light .react-tweet-theme[data-theme="dark"] {
+  --tweet-bg-color: #fff;
+  --tweet-bg-color-hover: #f7f9f9;
+  --tweet-color: #0f1419;
+  --tweet-font-color: #0f1419;
+  --tweet-color-blue-secondary: #536471;
+  --tweet-font-color-secondary: #536471;
+  --tweet-header-font-color: #0f1419;
+  --tweet-header-font-color-secondary: #536471;
+  --tweet-quoted-bg-color: #f7f9f9;
+  --tweet-quoted-bg-color-hover: rgba(0, 0, 0, 0.03);
+  --tweet-border: 1px solid rgb(207, 217, 222);
+  --tweet-link-color: #1d9bf0;
+  --tweet-likes-color: #f91880;
+  --tweet-replies-color: #1d9bf0;
+  --tweet-retweets-color: #00ba7c;
+  --tweet-skeleton-gradient: linear-gradient(270deg, #fafafa, #eaeaea, #eaeaea, #fafafa);
+  color-scheme: light;
 }

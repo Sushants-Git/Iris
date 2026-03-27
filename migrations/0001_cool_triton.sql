@@ -1,0 +1,1 @@
+ALTER TABLE "items" ADD COLUMN "rotation" real DEFAULT 0 NOT NULL;

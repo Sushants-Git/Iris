@@ -1,0 +1,52 @@
+export type ItemType = 'link' | 'note'
+export type Status = 'pending' | 'done'
+
+export interface Board {
+  id: string
+  name: string
+  createdAt: string
+  updatedAt: string
+}
+
+export interface Item {
+  id: string
+  boardId: string
+  type: ItemType
+  url: string | null
+  scrapedTitle: string | null
+  scrapedDescription: string | null
+  scrapedThumbnail: string | null
+  customTitle: string | null
+  customDescription: string | null
+  customThumbnail: string | null
+  noteContent: string | null
+  x: number
+  y: number
+  width: number
+  height: number
+  rotation: number
+  status: Status
+  createdAt: string
+  updatedAt: string
+}
+
+export interface PreviewResult {
+  ok: boolean
+  fallback?: boolean
+  title?: string
+  description?: string
+  thumbnail?: string
+}
+
+// Derived helpers
+export function getTitle(item: Item): string {
+  return item.customTitle ?? item.scrapedTitle ?? item.url ?? 'Untitled'
+}
+
+export function getDescription(item: Item): string | null {
+  return item.customDescription ?? item.scrapedDescription ?? null
+}
+
+export function getThumbnail(item: Item): string | null {
+  return item.customThumbnail ?? item.scrapedThumbnail ?? null
+}
