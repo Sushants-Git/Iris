@@ -1,8 +1,9 @@
 import { useState, useEffect } from 'react'
 import { Outlet } from 'react-router-dom'
-import { Menu, X } from 'lucide-react'
+import { Menu } from 'lucide-react'
 import { Sidebar } from './Sidebar'
 import { useMediaQuery } from '@/hooks/useMediaQuery'
+import { cn } from '@/lib/utils'
 
 export function AppShell() {
   const isMobile = useMediaQuery('(max-width: 768px)')
@@ -26,33 +27,27 @@ export function AppShell() {
         {/* Mobile top bar */}
         <header className="flex items-center gap-3 px-4 py-3 border-b border-border bg-background sticky top-0 z-40">
           <button
-            onClick={() => setSidebarOpen(true)}
+            onClick={() => setSidebarOpen((v) => !v)}
             className="p-1 rounded-md hover:bg-muted"
-            aria-label="Open menu"
+            aria-label="Toggle menu"
           >
             <Menu className="w-5 h-5" />
           </button>
           <span className="font-semibold text-sm">Iris</span>
         </header>
 
-        {/* Mobile drawer */}
-        {sidebarOpen && (
-          <>
-            <div
-              className="fixed inset-0 bg-black/40 z-40"
-              onClick={() => setSidebarOpen(false)}
-            />
-            <div className="fixed inset-y-0 left-0 z-50 flex">
-              <Sidebar onNavigate={() => setSidebarOpen(false)} />
-              <button
-                className="absolute top-3 right-[-40px] p-2 text-white"
-                onClick={() => setSidebarOpen(false)}
-              >
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-          </>
-        )}
+        {/* Floating panel — same style as desktop, anchored top-right */}
+        <div
+          className={cn(
+            'fixed top-16 right-3 z-50 transition-all duration-300 ease-in-out',
+            sidebarOpen ? 'opacity-100 translate-y-0 pointer-events-auto' : 'opacity-0 -translate-y-2 pointer-events-none',
+          )}
+        >
+          <Sidebar
+            onClose={() => setSidebarOpen(false)}
+            onNavigate={() => setSidebarOpen(false)}
+          />
+        </div>
 
         <main className="flex-1 overflow-auto">
           <Outlet />
@@ -63,17 +58,16 @@ export function AppShell() {
 
   return (
     <div className="flex h-full">
-      {sidebarOpen && (
-        <>
-          <div
-            className="fixed inset-0 z-30"
-            onPointerDown={() => setSidebarOpen(false)}
-          />
-          <div className="relative z-40 shrink-0" onPointerDown={(e) => e.stopPropagation()}>
-            <Sidebar />
-          </div>
-        </>
-      )}
+      {/* Floating sidebar — always mounted so the close animation plays */}
+      <div
+        className={cn(
+          'fixed top-3 right-3 z-40 transition-all duration-300 ease-in-out',
+          sidebarOpen ? 'opacity-100 translate-y-0 pointer-events-auto' : 'opacity-0 -translate-y-2 pointer-events-none',
+        )}
+      >
+        <Sidebar onClose={() => setSidebarOpen(false)} />
+      </div>
+
       <main className="flex-1 overflow-hidden">
         <Outlet />
       </main>
