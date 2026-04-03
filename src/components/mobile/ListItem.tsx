@@ -54,7 +54,7 @@ export function ListItem({ item, onStatusToggle, onDelete }: Props) {
       {/* Content */}
       <div className="flex-1 min-w-0 flex flex-col gap-1 pt-1">
         <p className={[
-          'text-sm font-medium leading-snug line-clamp-2',
+          'text-sm font-medium leading-snug line-clamp-2 break-all',
           isDone ? 'text-muted-foreground line-through decoration-muted-foreground/50' : 'text-card-foreground',
         ].join(' ')}>
           {title}

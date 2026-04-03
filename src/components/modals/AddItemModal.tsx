@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { Loader2, Link2, FileText } from 'lucide-react'
+import { useMediaQuery } from '@/hooks/useMediaQuery'
 import {
   Dialog,
   DialogContent,
@@ -23,6 +24,7 @@ interface Props {
 }
 
 export function AddItemModal({ open, onOpenChange, onAdd }: Props) {
+  const isMobile = useMediaQuery('(max-width: 768px)')
   const [mode, setMode] = useState<Mode>('link')
   const [url, setUrl] = useState('')
   const [noteContent, setNoteContent] = useState('')
@@ -42,6 +44,7 @@ export function AddItemModal({ open, onOpenChange, onAdd }: Props) {
   }
 
   async function fetchPreview(rawUrl: string) {
+    if (isMobile) return
     const trimmed = rawUrl.trim()
     if (!trimmed) { setPreview(null); return }
     try {
@@ -84,7 +87,7 @@ export function AddItemModal({ open, onOpenChange, onAdd }: Props) {
 
   return (
     <Dialog open={open} onOpenChange={handleClose}>
-      <DialogContent className="sm:max-w-md">
+      <DialogContent className="sm:max-w-md top-[8%] sm:top-1/2 translate-y-0 sm:-translate-y-1/2">
         <DialogHeader>
           <DialogTitle>Add to Canvas</DialogTitle>
         </DialogHeader>
@@ -125,7 +128,11 @@ export function AddItemModal({ open, onOpenChange, onAdd }: Props) {
                 <div className="relative">
                   <Input
                     id="url"
-                    type="url"
+                    type="text"
+                    inputMode="url"
+                    autoCapitalize="off"
+                    autoCorrect="off"
+                    autoComplete="off"
                     placeholder="https://…"
                     value={url}
                     onChange={(e) => setUrl(e.target.value)}
@@ -138,8 +145,8 @@ export function AddItemModal({ open, onOpenChange, onAdd }: Props) {
                 </div>
               </div>
 
-              {/* Preview */}
-              {preview && preview.ok && (
+              {/* Preview — desktop only */}
+              {!isMobile && preview && preview.ok && (
                 <div className="border border-border rounded-lg overflow-hidden">
                   {preview.thumbnail && (
                     <img
@@ -152,7 +159,7 @@ export function AddItemModal({ open, onOpenChange, onAdd }: Props) {
                     />
                   )}
                   <div className="p-3 space-y-0.5">
-                    {preview.title && (
+                    {preview.title && preview.title !== url.trim() && (
                       <p className="text-sm font-medium line-clamp-1">{preview.title}</p>
                     )}
                     {preview.description && (
@@ -163,7 +170,7 @@ export function AddItemModal({ open, onOpenChange, onAdd }: Props) {
                   </div>
                 </div>
               )}
-              {preview && preview.fallback && (
+              {!isMobile && preview && preview.fallback && (
                 <p className="text-xs text-muted-foreground">
                   Could not load preview — will show as a plain link card.
                 </p>
