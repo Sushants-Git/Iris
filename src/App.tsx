@@ -4,6 +4,7 @@ import { TooltipProvider } from '@/components/ui/tooltip'
 import { AppShell } from '@/components/layout/AppShell'
 import { BoardPage } from '@/pages/BoardPage'
 import { RedirectPage } from '@/pages/RedirectPage'
+import { PasswordGate } from '@/components/PasswordGate'
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -13,6 +14,7 @@ const queryClient = new QueryClient({
 
 export default function App() {
   return (
+    <PasswordGate>
     <QueryClientProvider client={queryClient}>
       <TooltipProvider>
         <BrowserRouter>
@@ -26,5 +28,6 @@ export default function App() {
         </BrowserRouter>
       </TooltipProvider>
     </QueryClientProvider>
+    </PasswordGate>
   )
 }

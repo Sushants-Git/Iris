@@ -1,5 +1,5 @@
 import { useRef, useState, useEffect } from 'react'
-import { Trash2, GripHorizontal, Pencil, RotateCw } from 'lucide-react'
+import { Trash2, GripHorizontal, Pencil, RotateCw, BringToFront } from 'lucide-react'
 import { cn, isImageUrl } from '@/lib/utils'
 import { CardStatusBadge } from './CardStatusBadge'
 import type { Item, Status } from '@/types'
@@ -23,6 +23,7 @@ interface Props {
   }) => void
   onDelete: () => void
   onEdit: () => void
+  onBringToFront: () => void
   children: React.ReactNode
 }
 
@@ -34,6 +35,7 @@ export function CanvasCard({
   onUpdate,
   onDelete,
   onEdit,
+  onBringToFront,
   children,
 }: Props) {
   const cardRef = useRef<HTMLDivElement>(null)
@@ -222,6 +224,14 @@ export function CanvasCard({
           )}
         </div>
         <div className="flex items-center gap-1.5">
+          <button
+            onPointerDown={(e) => e.stopPropagation()}
+            onClick={(e) => { e.stopPropagation(); onBringToFront() }}
+            className="p-1 rounded hover:bg-muted text-muted-foreground hover:text-foreground opacity-0 group-hover:opacity-100 transition-opacity"
+            aria-label="Bring to front"
+          >
+            <BringToFront className="w-3 h-3" />
+          </button>
           <button
             onPointerDown={(e) => e.stopPropagation()}
             onClick={(e) => { e.stopPropagation(); onEdit() }}

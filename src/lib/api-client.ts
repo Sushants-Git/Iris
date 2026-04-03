@@ -1,15 +1,30 @@
 import type { Board, Item, PreviewResult } from '@/types'
 
 const BASE = '/api'
+const TOKEN_KEY = 'iris_token'
+
+export function getToken() { return localStorage.getItem(TOKEN_KEY) }
+export function setToken(t: string) { localStorage.setItem(TOKEN_KEY, t) }
+export function clearToken() { localStorage.removeItem(TOKEN_KEY) }
 
 async function request<T>(
   path: string,
   options?: RequestInit,
 ): Promise<T> {
+  const token = getToken()
   const res = await fetch(`${BASE}${path}`, {
-    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    headers: {
+      'Content-Type': 'application/json',
+      ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
+      ...options?.headers,
+    },
     ...options,
   })
+  if (res.status === 401) {
+    clearToken()
+    window.location.reload()
+    throw new Error('Unauthorized')
+  }
   if (!res.ok) {
     const text = await res.text()
     throw new Error(`API error ${res.status}: ${text}`)

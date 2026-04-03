@@ -32,6 +32,7 @@ interface Props {
 export function Canvas({
   items,
   isLoading,
+  boardId,
   onCreateItem,
   onUpdateItem,
   onDeleteItem,
@@ -46,8 +47,15 @@ export function Canvas({
   const [pasting, setPasting] = useState(false)
   const [cmdOpen, setCmdOpen] = useState(false)
   const [highlightId, setHighlightId] = useState<string | null>(null)
+  const [topIds, setTopIds] = useState<string[]>([])
   const [showMinimap, setShowMinimap] = useState(false)
   const minimapTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  // Clear highlight and search when board changes (Canvas doesn't remount between boards)
+  useEffect(() => {
+    setHighlightId(null)
+    setCmdOpen(false)
+  }, [boardId])
 
   function flashMinimap() {
     setShowMinimap(true)
@@ -299,7 +307,14 @@ export function Canvas({
           willChange: 'transform',
         }}
       >
-        {items.map((item) => (
+        {[...items].sort((a, b) => {
+          const ai = topIds.indexOf(a.id)
+          const bi = topIds.indexOf(b.id)
+          if (ai === bi) return 0
+          if (ai === -1) return -1
+          if (bi === -1) return 1
+          return ai - bi
+        }).map((item) => (
           <div
             key={item.id}
             data-card="true"
@@ -314,6 +329,7 @@ export function Canvas({
               onUpdate={(payload) => onUpdateItem(item.id, payload)}
               onDelete={() => onDeleteItem(item.id)}
               onEdit={() => setEditItem(item)}
+              onBringToFront={() => setTopIds((prev) => [...prev.filter((id) => id !== item.id), item.id])}
             >
               {item.type === 'link' ? (
                 <LinkCard item={item} />

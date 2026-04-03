@@ -18,6 +18,9 @@ export function CommandSearch({ items, onSelect, onClose }: Props) {
 
   useEffect(() => {
     inputRef.current?.focus()
+    // Scroll first item into view on open
+    const el = listRef.current?.children[0] as HTMLElement | undefined
+    el?.scrollIntoView({ block: 'nearest' })
   }, [])
 
   const filtered = query.trim()

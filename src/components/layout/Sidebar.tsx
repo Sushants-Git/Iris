@@ -1,4 +1,4 @@
-import { useState, useRef } from 'react'
+import { useState, useRef, useEffect } from 'react'
 import { Link, useParams, useNavigate } from 'react-router-dom'
 import { Plus, Trash2, Check, X } from 'lucide-react'
 import { Button } from '@/components/ui/button'
@@ -9,9 +9,10 @@ import { CreateBoardModal } from '@/components/modals/CreateBoardModal'
 interface Props {
   onNavigate?: () => void
   onClose?: () => void
+  isOpen?: boolean
 }
 
-export function Sidebar({ onNavigate, onClose }: Props) {
+export function Sidebar({ onNavigate, onClose, isOpen = true }: Props) {
   const { boardId } = useParams<{ boardId: string }>()
   const navigate = useNavigate()
   const { data: boards = [], isLoading } = useBoards()
@@ -20,7 +21,38 @@ export function Sidebar({ onNavigate, onClose }: Props) {
   const [createOpen, setCreateOpen] = useState(false)
   const [renamingId, setRenamingId] = useState<string | null>(null)
   const [renameValue, setRenameValue] = useState('')
+  const currentIndex = boards.findIndex((b) => b.id === boardId)
+  const [focusedIndex, setFocusedIndex] = useState(() => Math.max(currentIndex, 0))
   const renameInputRef = useRef<HTMLInputElement>(null)
+  const itemRefs = useRef<(HTMLAnchorElement | null)[]>([])
+
+  useEffect(() => {
+    function onKeyDown(e: KeyboardEvent) {
+      if (!isOpen) return
+      if (renamingId) return
+      if (e.key === 'ArrowDown') {
+        e.preventDefault()
+        const next = Math.min(focusedIndex + 1, boards.length - 1)
+        setFocusedIndex(next)
+        if (boards[next]) navigate(`/boards/${boards[next].id}`)
+      } else if (e.key === 'ArrowUp') {
+        e.preventDefault()
+        const next = Math.max(focusedIndex - 1, 0)
+        setFocusedIndex(next)
+        if (boards[next]) navigate(`/boards/${boards[next].id}`)
+      } else if (e.key === 'Enter' || e.key === 'Escape') {
+        onNavigate?.()
+        onClose?.()
+      }
+    }
+    window.addEventListener('keydown', onKeyDown)
+    return () => window.removeEventListener('keydown', onKeyDown)
+  }, [boards, focusedIndex, renamingId, navigate, onNavigate, isOpen])
+
+  // Scroll focused item into view
+  useEffect(() => {
+    itemRefs.current[focusedIndex]?.scrollIntoView({ block: 'nearest' })
+  }, [focusedIndex])
 
   function startRename(id: string, currentName: string) {
     setRenamingId(id)
@@ -62,7 +94,7 @@ export function Sidebar({ onNavigate, onClose }: Props) {
           <div className="px-2 py-1 text-xs text-muted-foreground">Loading…</div>
         )}
 
-        {boards.map((board) => (
+        {boards.map((board, i) => (
           <div key={board.id} className="group relative flex items-center rounded-md">
             {renamingId === board.id ? (
               <div className="flex-1 flex items-center gap-1 px-2 py-1">
@@ -87,12 +119,14 @@ export function Sidebar({ onNavigate, onClose }: Props) {
             ) : (
               <>
                 <Link
+                  ref={(el) => { itemRefs.current[i] = el }}
                   to={`/boards/${board.id}`}
                   onClick={onNavigate}
                   onDoubleClick={() => startRename(board.id, board.name)}
+                  onMouseEnter={() => setFocusedIndex(i)}
                   className={cn(
                     'flex-1 flex items-center gap-2 px-2 py-1.5 rounded-md text-sm transition-colors truncate',
-                    boardId === board.id
+                    focusedIndex === i
                       ? 'bg-sidebar-accent text-sidebar-accent-foreground font-medium'
                       : 'text-sidebar-foreground hover:bg-sidebar-accent/60',
                   )}

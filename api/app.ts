@@ -5,7 +5,25 @@ import { eq, desc } from 'drizzle-orm'
 import { load } from 'cheerio'
 import { neon } from '@neondatabase/serverless'
 import { drizzle } from 'drizzle-orm/neon-http'
+import { createHmac, randomBytes } from 'crypto'
 import * as schema from '../src/lib/schema.js'
+
+function signNonce(nonce: string): string {
+  const secret = process.env.APP_SECRET ?? 'fallback-secret'
+  return createHmac('sha256', secret).update(nonce).digest('hex')
+}
+
+function makeToken(): string {
+  const nonce = randomBytes(32).toString('hex')
+  return `${nonce}.${signNonce(nonce)}`
+}
+
+function validateToken(token: string): boolean {
+  const parts = token.split('.')
+  if (parts.length !== 2) return false
+  const [nonce, sig] = parts
+  return sig === signNonce(nonce)
+}
 
 function getDb() {
   const sql = neon(process.env.NEON_DATABASE_URL!)
@@ -23,6 +41,31 @@ app.use('*', async (c, next) => {
 })
 
 app.options('*', () => new Response(null, { status: 204 }))
+
+// ─── AUTH ─────────────────────────────────────────────────────────────────────
+
+app.post(
+  '/auth',
+  zValidator('json', z.object({ password: z.string() })),
+  async (c) => {
+    const { password } = c.req.valid('json')
+    const expected = process.env.APP_PASSWORD
+    if (!expected) return c.json({ ok: false, error: 'Not configured' }, 500)
+    if (password !== expected) return c.json({ ok: false, error: 'Wrong password' }, 401)
+    return c.json({ ok: true, token: makeToken() })
+  },
+)
+
+// ─── AUTH MIDDLEWARE (all routes below this) ──────────────────────────────────
+
+app.use('*', async (c, next) => {
+  const auth = c.req.header('Authorization')
+  const token = auth?.startsWith('Bearer ') ? auth.slice(7) : null
+  if (!token || !validateToken(token)) {
+    return c.json({ error: 'Unauthorized' }, 401)
+  }
+  await next()
+})
 
 // ─── BOARDS ───────────────────────────────────────────────────────────────────
 
