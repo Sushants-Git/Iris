@@ -40,6 +40,7 @@ export function BoardPage() {
         boardId={boardId}
         onStatusToggle={(id, status) => updateItem.mutate({ id, payload: { status } })}
         onDelete={(id) => deleteItem.mutate(id)}
+        onUpdateItem={(id, payload) => updateItem.mutate({ id, payload })}
         onCreateItem={createItem.mutate}
       />
     )

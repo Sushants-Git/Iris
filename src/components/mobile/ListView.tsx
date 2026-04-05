@@ -1,12 +1,12 @@
-import { useState } from 'react'
-import { Plus, Copy, Check, Trash2, Link, Search, FolderOpen } from 'lucide-react'
+import { useState, useRef } from 'react'
+import { Plus, Copy, Check, Trash2, Link, Search, FolderOpen, Pencil, CheckCircle2, Circle, X } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { ListItem } from './ListItem'
 import { AddItemModal } from '@/components/modals/AddItemModal'
 import { isImageUrl } from '@/lib/utils'
 import { getTitle } from '@/types'
 import type { Item, Status } from '@/types'
-import type { CreateItemPayload } from '@/lib/api-client'
+import type { CreateItemPayload, UpdateItemPayload } from '@/lib/api-client'
 
 interface Props {
   items: Item[]
@@ -14,15 +14,22 @@ interface Props {
   boardId: string
   onStatusToggle: (id: string, status: Status) => void
   onDelete: (id: string) => void
+  onUpdateItem: (id: string, payload: UpdateItemPayload) => void
   onCreateItem: (payload: CreateItemPayload) => void
 }
 
 function ImageGridItem({
   item,
   onDelete,
+  isSelectMode,
+  isSelected,
+  onToggleSelect,
 }: {
   item: Item
   onDelete: () => void
+  isSelectMode?: boolean
+  isSelected?: boolean
+  onToggleSelect?: () => void
 }) {
   const [imgFailed, setImgFailed] = useState(false)
   const [copied, setCopied] = useState(false)
@@ -56,14 +63,29 @@ function ImageGridItem({
   )
 
   return (
-    <div className="relative rounded-xl overflow-hidden aspect-square bg-muted">
-      {item.url ? (
+    <div
+      className={`relative rounded-xl overflow-hidden aspect-square bg-muted ${isSelectMode && isSelected ? 'ring-2 ring-primary' : ''}`}
+      onClick={isSelectMode ? onToggleSelect : undefined}
+    >
+      {isSelectMode ? (
+        <div className="w-full h-full">{inner}</div>
+      ) : item.url ? (
         <a href={item.url} target="_blank" rel="noopener noreferrer" className="block w-full h-full">
           {inner}
         </a>
       ) : inner}
 
-      {item.url && (
+      {/* Select indicator */}
+      {isSelectMode && (
+        <div className="absolute top-1.5 left-1.5 z-10">
+          {isSelected
+            ? <CheckCircle2 className="w-5 h-5 text-primary drop-shadow" />
+            : <Circle className="w-5 h-5 text-white/80 drop-shadow" />
+          }
+        </div>
+      )}
+
+      {!isSelectMode && item.url && (
         <button
           onClick={handleCopy}
           className="absolute top-1.5 right-1.5 p-1 rounded-md bg-black/30 text-white backdrop-blur-sm"
@@ -73,22 +95,122 @@ function ImageGridItem({
         </button>
       )}
 
-      <button
-        onClick={onDelete}
-        className="absolute bottom-1.5 right-1.5 p-1 rounded-md bg-black/30 text-white backdrop-blur-sm"
-      >
-        <Trash2 className="w-3 h-3" />
-      </button>
+      {!isSelectMode && (
+        <button
+          onClick={onDelete}
+          className="absolute bottom-1.5 right-1.5 p-1 rounded-md bg-black/30 text-white backdrop-blur-sm"
+        >
+          <Trash2 className="w-3 h-3" />
+        </button>
+      )}
     </div>
   )
 }
 
-function SubcategoryHeader({ name }: { name: string }) {
+function SubcategorySection({
+  header,
+  groupItems,
+  isSelectMode,
+  selectedIds,
+  onToggleSelect,
+  onStatusToggle,
+  onDelete,
+  onDeleteHeader,
+  onRenameHeader,
+}: {
+  header: Item
+  groupItems: Item[]
+  isSelectMode: boolean
+  selectedIds: Set<string>
+  onToggleSelect: (id: string) => void
+  onStatusToggle: (id: string, status: Status) => void
+  onDelete: (id: string) => void
+  onDeleteHeader: () => void
+  onRenameHeader: (newName: string) => void
+}) {
+  const [renaming, setRenaming] = useState(false)
+  const [renameValue, setRenameValue] = useState('')
+  const inputRef = useRef<HTMLInputElement>(null)
+  const name = getTitle(header)
+
+  function startRename() {
+    setRenameValue(name)
+    setRenaming(true)
+    setTimeout(() => inputRef.current?.select(), 0)
+  }
+
+  function commitRename() {
+    const trimmed = renameValue.trim()
+    if (trimmed && trimmed !== name) onRenameHeader(trimmed)
+    setRenaming(false)
+  }
+
   return (
-    <div className="flex items-center gap-2 pt-2 pb-1">
-      <FolderOpen className="w-4 h-4 text-muted-foreground shrink-0" />
-      <span className="text-sm font-semibold text-foreground">{name}</span>
-      <div className="flex-1 h-px bg-border" />
+    <div className="mb-4">
+      <div className="flex items-center gap-2 pt-2 pb-1">
+        <FolderOpen className="w-4 h-4 text-muted-foreground shrink-0" />
+        {renaming ? (
+          <>
+            <input
+              ref={inputRef}
+              value={renameValue}
+              onChange={(e) => setRenameValue(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') commitRename()
+                if (e.key === 'Escape') setRenaming(false)
+              }}
+              onBlur={commitRename}
+              className="flex-1 text-sm font-semibold bg-transparent border-b border-primary outline-none min-w-0"
+              autoFocus
+            />
+            <button onClick={() => setRenaming(false)} className="p-0.5 text-muted-foreground">
+              <X className="w-3.5 h-3.5" />
+            </button>
+          </>
+        ) : (
+          <>
+            <span
+              className="text-sm font-semibold text-foreground"
+              onDoubleClick={startRename}
+            >
+              {name}
+            </span>
+            <div className="flex-1 h-px bg-border" />
+            <button
+              onClick={startRename}
+              className="p-1 text-muted-foreground hover:text-foreground active:text-foreground transition-colors"
+              title="Rename category"
+            >
+              <Pencil className="w-3.5 h-3.5" />
+            </button>
+            <button
+              onClick={onDeleteHeader}
+              className="p-1 text-muted-foreground hover:text-destructive active:text-destructive transition-colors"
+              title="Delete category"
+            >
+              <Trash2 className="w-3.5 h-3.5" />
+            </button>
+          </>
+        )}
+      </div>
+
+      {groupItems.length === 0 ? (
+        <p className="text-xs text-muted-foreground pl-6 py-2">No items yet</p>
+      ) : (
+        <div className="space-y-3">
+          {groupItems.map((item) => (
+            <ListItem
+              key={item.id}
+              item={item}
+              onStatusToggle={(status) => onStatusToggle(item.id, status)}
+              onDelete={() => onDelete(item.id)}
+              isSelectMode={isSelectMode}
+              isSelected={selectedIds.has(item.id)}
+              onToggleSelect={() => onToggleSelect(item.id)}
+            />
+          ))}
+        </div>
+      )}
     </div>
   )
 }
@@ -98,10 +220,13 @@ export function ListView({
   isLoading,
   onStatusToggle,
   onDelete,
+  onUpdateItem,
   onCreateItem,
 }: Props) {
   const [addOpen, setAddOpen] = useState(false)
   const [query, setQuery] = useState('')
+  const [isSelectMode, setIsSelectMode] = useState(false)
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
 
   const sorted = [...items].sort((a, b) => {
     if (a.status !== b.status) return a.status === 'done' ? 1 : -1
@@ -119,7 +244,6 @@ export function ListView({
       })
     : sorted
 
-  // Separate item types
   const imageItems = filtered.filter(
     (item) => item.type === 'link' && item.url && isImageUrl(item.url),
   )
@@ -130,7 +254,6 @@ export function ListView({
       !(item.type === 'link' && item.url && isImageUrl(item.url)),
   )
 
-  // Match an item's URL against a subcategory's URL pattern (hostname match)
   function matchesUrl(itemUrl: string | null, patternUrl: string | null): boolean {
     if (!itemUrl || !patternUrl) return false
     try {
@@ -142,29 +265,57 @@ export function ListView({
     }
   }
 
-  // Build grouped structure: subcategory name → items (by explicit tag OR url pattern)
-  const groups: { name: string; items: Item[] }[] = subcategoryHeaders.map((header) => {
+  const groups: { header: Item; items: Item[] }[] = subcategoryHeaders.map((header) => {
     const name = getTitle(header)
     return {
-      name,
+      header,
       items: regularItems.filter(
         (item) => item.subcategory === name || matchesUrl(item.url, header.url),
       ),
     }
   })
 
-  // Items matched by URL pattern count as grouped even if not explicitly tagged
   const groupedIds = new Set(groups.flatMap((g) => g.items.map((i) => i.id)))
   const ungrouped = regularItems.filter((item) => !groupedIds.has(item.id))
 
   const subcategoryNames = subcategoryHeaders.map((h) => getTitle(h))
   const isEmpty = imageItems.length === 0 && subcategoryHeaders.length === 0 && regularItems.length === 0
 
+  function toggleSelectMode() {
+    setIsSelectMode((v) => !v)
+    setSelectedIds(new Set())
+  }
+
+  function toggleSelect(id: string) {
+    setSelectedIds((prev) => {
+      const next = new Set(prev)
+      if (next.has(id)) next.delete(id)
+      else next.add(id)
+      return next
+    })
+  }
+
+  function handleDeleteSelected() {
+    selectedIds.forEach((id) => onDelete(id))
+    setSelectedIds(new Set())
+    setIsSelectMode(false)
+  }
+
+  function handleRenameHeader(headerId: string, oldName: string, newName: string) {
+    onUpdateItem(headerId, { customTitle: newName })
+    // Update all items explicitly tagged with the old category name
+    items.forEach((item) => {
+      if (item.subcategory === oldName) {
+        onUpdateItem(item.id, { subcategory: newName })
+      }
+    })
+  }
+
   return (
     <div className="flex flex-col h-full">
-      {/* Search bar */}
-      <div className="px-4 pt-3 pb-2">
-        <div className="relative">
+      {/* Search + select mode toggle */}
+      <div className="px-4 pt-3 pb-2 flex items-center gap-2">
+        <div className="relative flex-1">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
           <input
             type="text"
@@ -174,6 +325,12 @@ export function ListView({
             className="w-full pl-9 pr-3 py-2 text-sm rounded-lg bg-muted border-0 outline-none placeholder:text-muted-foreground"
           />
         </div>
+        <button
+          onClick={toggleSelectMode}
+          className="text-sm text-muted-foreground hover:text-foreground active:text-foreground px-2 py-1.5 rounded-lg hover:bg-muted transition-colors shrink-0"
+        >
+          {isSelectMode ? 'Cancel' : 'Select'}
+        </button>
       </div>
 
       {/* pt-2 gives room for the status dot that overflows the first card's top border */}
@@ -203,30 +360,28 @@ export function ListView({
                 key={item.id}
                 item={item}
                 onDelete={() => onDelete(item.id)}
+                isSelectMode={isSelectMode}
+                isSelected={selectedIds.has(item.id)}
+                onToggleSelect={() => toggleSelect(item.id)}
               />
             ))}
           </div>
         )}
 
         {/* Subcategory groups */}
-        {groups.map(({ name, items: groupItems }) => (
-          <div key={name}>
-            <SubcategoryHeader name={name} />
-            {groupItems.length === 0 ? (
-              <p className="text-xs text-muted-foreground pl-6 py-2">No items yet</p>
-            ) : (
-              <div className="space-y-3">
-                {groupItems.map((item) => (
-                  <ListItem
-                    key={item.id}
-                    item={item}
-                    onStatusToggle={(status) => onStatusToggle(item.id, status)}
-                    onDelete={() => onDelete(item.id)}
-                  />
-                ))}
-              </div>
-            )}
-          </div>
+        {groups.map(({ header, items: groupItems }) => (
+          <SubcategorySection
+            key={header.id}
+            header={header}
+            groupItems={groupItems}
+            isSelectMode={isSelectMode}
+            selectedIds={selectedIds}
+            onToggleSelect={toggleSelect}
+            onStatusToggle={onStatusToggle}
+            onDelete={onDelete}
+            onDeleteHeader={() => onDelete(header.id)}
+            onRenameHeader={(newName) => handleRenameHeader(header.id, getTitle(header), newName)}
+          />
         ))}
 
         {/* Ungrouped items */}
@@ -236,18 +391,39 @@ export function ListView({
             item={item}
             onStatusToggle={(status) => onStatusToggle(item.id, status)}
             onDelete={() => onDelete(item.id)}
+            isSelectMode={isSelectMode}
+            isSelected={selectedIds.has(item.id)}
+            onToggleSelect={() => toggleSelect(item.id)}
           />
         ))}
       </div>
 
-      {/* FAB */}
-      <button
-        onClick={() => setAddOpen(true)}
-        className="fixed bottom-6 right-4 z-30 w-12 h-12 rounded-full bg-primary text-primary-foreground shadow-lg flex items-center justify-center"
-        aria-label="Add item"
-      >
-        <Plus className="w-5 h-5" />
-      </button>
+      {/* Multi-select delete bar */}
+      {isSelectMode && selectedIds.size > 0 && (
+        <div className="fixed bottom-6 left-4 right-20 z-30 flex items-center justify-between gap-3 px-4 py-3 bg-card border border-border rounded-xl shadow-lg">
+          <span className="text-sm font-medium text-foreground">
+            {selectedIds.size} selected
+          </span>
+          <button
+            onClick={handleDeleteSelected}
+            className="flex items-center gap-1.5 text-sm font-medium text-destructive hover:text-destructive/80 active:text-destructive/80"
+          >
+            <Trash2 className="w-4 h-4" />
+            Delete
+          </button>
+        </div>
+      )}
+
+      {/* FAB — hidden in select mode */}
+      {!isSelectMode && (
+        <button
+          onClick={() => setAddOpen(true)}
+          className="fixed bottom-6 right-4 z-30 w-12 h-12 rounded-full bg-primary text-primary-foreground shadow-lg flex items-center justify-center"
+          aria-label="Add item"
+        >
+          <Plus className="w-5 h-5" />
+        </button>
+      )}
 
       <AddItemModal
         open={addOpen}
