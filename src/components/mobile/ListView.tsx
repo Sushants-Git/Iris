@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Plus, ExternalLink, Trash2, Link, Search } from 'lucide-react'
+import { Plus, Copy, Check, Trash2, Link, Search } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { ListItem } from './ListItem'
 import { AddItemModal } from '@/components/modals/AddItemModal'
@@ -25,8 +25,20 @@ function ImageGridItem({
   onDelete: () => void
 }) {
   const [imgFailed, setImgFailed] = useState(false)
-  return (
-    <div className="relative rounded-xl overflow-hidden aspect-square bg-muted">
+  const [copied, setCopied] = useState(false)
+
+  function handleCopy(e: React.MouseEvent) {
+    e.preventDefault()
+    e.stopPropagation()
+    if (!item.url) return
+    navigator.clipboard.writeText(item.url).then(() => {
+      setCopied(true)
+      setTimeout(() => setCopied(false), 1500)
+    })
+  }
+
+  const inner = (
+    <>
       {!imgFailed ? (
         <img
           src={item.url!}
@@ -40,16 +52,25 @@ function ImageGridItem({
           <p className="text-xs text-muted-foreground text-center break-all line-clamp-3">{item.url}</p>
         </div>
       )}
+    </>
+  )
+
+  return (
+    <div className="relative rounded-xl overflow-hidden aspect-square bg-muted">
+      {item.url ? (
+        <a href={item.url} target="_blank" rel="noopener noreferrer" className="block w-full h-full">
+          {inner}
+        </a>
+      ) : inner}
 
       {item.url && (
-        <a
-          href={item.url}
-          target="_blank"
-          rel="noopener noreferrer"
+        <button
+          onClick={handleCopy}
           className="absolute top-1.5 right-1.5 p-1 rounded-md bg-black/30 text-white backdrop-blur-sm"
+          title="Copy link"
         >
-          <ExternalLink className="w-3 h-3" />
-        </a>
+          {copied ? <Check className="w-3 h-3 text-emerald-400" /> : <Copy className="w-3 h-3" />}
+        </button>
       )}
 
       <button
