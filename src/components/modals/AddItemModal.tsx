@@ -94,7 +94,13 @@ export function AddItemModal({ open, onOpenChange, onAdd, subcategoryNames = [] 
     } else {
       const name = subcategoryName.trim()
       if (!name) return
-      onAdd({ type: 'subcategory', customTitle: name })
+      // Store the raw input as url so URL-pattern matching works in the list
+      const looksLikeUrl = /^https?:\/\/|^[\w-]+\.\w/.test(name)
+      onAdd({
+        type: 'subcategory',
+        customTitle: name,
+        ...(looksLikeUrl ? { url: name.startsWith('http') ? name : `https://${name}` } : {}),
+      })
     }
     handleClose(false)
   }

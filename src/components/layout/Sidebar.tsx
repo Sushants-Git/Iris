@@ -21,8 +21,13 @@ export function Sidebar({ onNavigate, onClose, isOpen = true }: Props) {
   const [createOpen, setCreateOpen] = useState(false)
   const [renamingId, setRenamingId] = useState<string | null>(null)
   const [renameValue, setRenameValue] = useState('')
-  const currentIndex = boards.findIndex((b) => b.id === boardId)
-  const [focusedIndex, setFocusedIndex] = useState(() => Math.max(currentIndex, 0))
+  const [focusedIndex, setFocusedIndex] = useState(0)
+
+  // Keep focused index in sync when boardId changes or boards load
+  useEffect(() => {
+    const idx = boards.findIndex((b) => b.id === boardId)
+    if (idx !== -1) setFocusedIndex(idx)
+  }, [boardId, boards])
   const renameInputRef = useRef<HTMLInputElement>(null)
   const itemRefs = useRef<(HTMLAnchorElement | null)[]>([])
 

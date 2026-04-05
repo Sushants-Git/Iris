@@ -130,15 +130,32 @@ export function ListView({
       !(item.type === 'link' && item.url && isImageUrl(item.url)),
   )
 
-  // Build grouped structure: subcategory name → items
+  // Match an item's URL against a subcategory's URL pattern (hostname match)
+  function matchesUrl(itemUrl: string | null, patternUrl: string | null): boolean {
+    if (!itemUrl || !patternUrl) return false
+    try {
+      const pattern = new URL(patternUrl).hostname.replace(/^www\./, '')
+      const host = new URL(itemUrl).hostname.replace(/^www\./, '')
+      return host === pattern || host.endsWith(`.${pattern}`)
+    } catch {
+      return false
+    }
+  }
+
+  // Build grouped structure: subcategory name → items (by explicit tag OR url pattern)
   const groups: { name: string; items: Item[] }[] = subcategoryHeaders.map((header) => {
     const name = getTitle(header)
     return {
       name,
-      items: regularItems.filter((item) => item.subcategory === name),
+      items: regularItems.filter(
+        (item) => item.subcategory === name || matchesUrl(item.url, header.url),
+      ),
     }
   })
-  const ungrouped = regularItems.filter((item) => !item.subcategory)
+
+  // Items matched by URL pattern count as grouped even if not explicitly tagged
+  const groupedIds = new Set(groups.flatMap((g) => g.items.map((i) => i.id)))
+  const ungrouped = regularItems.filter((item) => !groupedIds.has(item.id))
 
   const subcategoryNames = subcategoryHeaders.map((h) => getTitle(h))
   const isEmpty = imageItems.length === 0 && subcategoryHeaders.length === 0 && regularItems.length === 0
