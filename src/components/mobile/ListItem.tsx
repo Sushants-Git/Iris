@@ -73,8 +73,9 @@ export function ListItem({ item, onStatusToggle, onDelete, isSelectMode, isSelec
   return (
     <div
       className={[
-        'relative flex gap-3 p-3 bg-card border rounded-xl transition-colors',
+        'relative flex gap-3 p-3 bg-card border rounded-xl transition-colors select-none',
         isSelectMode && isSelected ? 'border-primary bg-primary/5' : 'border-border',
+        isSelectMode ? 'active:bg-muted cursor-pointer' : '',
       ].join(' ')}
       onClick={isSelectMode ? onToggleSelect : undefined}
     >
@@ -90,7 +91,7 @@ export function ListItem({ item, onStatusToggle, onDelete, isSelectMode, isSelec
         <button
           onClick={(e) => { e.stopPropagation(); onStatusToggle(isDone ? 'pending' : 'done') }}
           title={isDone ? 'Mark as pending' : 'Mark as done'}
-          className="absolute -top-1.5 left-3 z-10"
+          className="absolute -top-1.5 left-3 z-10 p-1 -m-1"
         >
           <span
             className={[

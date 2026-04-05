@@ -197,7 +197,7 @@ function SubcategorySection({
       {groupItems.length === 0 ? (
         <p className="text-xs text-muted-foreground pl-6 py-2">No items yet</p>
       ) : (
-        <div className="space-y-3">
+        <div className="space-y-3 pt-1">
           {groupItems.map((item) => (
             <ListItem
               key={item.id}

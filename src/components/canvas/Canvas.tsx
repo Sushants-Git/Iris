@@ -307,7 +307,7 @@ export function Canvas({
           willChange: 'transform',
         }}
       >
-        {[...items].sort((a, b) => {
+        {[...items].filter((item) => item.type !== 'subcategory').sort((a, b) => {
           const ai = topIds.indexOf(a.id)
           const bi = topIds.indexOf(b.id)
           if (ai === bi) return 0

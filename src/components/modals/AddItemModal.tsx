@@ -30,6 +30,7 @@ export function AddItemModal({ open, onOpenChange, onAdd, subcategoryNames = [] 
   const [url, setUrl] = useState('')
   const [noteContent, setNoteContent] = useState('')
   const [subcategoryName, setSubcategoryName] = useState('')
+  const [subcategoryLabel, setSubcategoryLabel] = useState('')
   const [itemSubcategory, setItemSubcategory] = useState('')
   const [preview, setPreview] = useState<PreviewResult | null>(null)
   const [fetching, setFetching] = useState(false)
@@ -38,6 +39,7 @@ export function AddItemModal({ open, onOpenChange, onAdd, subcategoryNames = [] 
     setUrl('')
     setNoteContent('')
     setSubcategoryName('')
+    setSubcategoryLabel('')
     setItemSubcategory('')
     setPreview(null)
     setFetching(false)
@@ -94,12 +96,13 @@ export function AddItemModal({ open, onOpenChange, onAdd, subcategoryNames = [] 
     } else {
       const name = subcategoryName.trim()
       if (!name) return
-      // Store the raw input as url so URL-pattern matching works in the list
       const looksLikeUrl = /^https?:\/\/|^[\w-]+\.\w/.test(name)
+      const normalizedUrl = looksLikeUrl ? (name.startsWith('http') ? name : `https://${name}`) : undefined
+      const label = subcategoryLabel.trim() || (looksLikeUrl ? extractHostname(name) : name)
       onAdd({
         type: 'subcategory',
-        customTitle: name,
-        ...(looksLikeUrl ? { url: name.startsWith('http') ? name : `https://${name}` } : {}),
+        customTitle: label,
+        ...(normalizedUrl ? { url: normalizedUrl } : {}),
       })
     }
     handleClose(false)
@@ -220,18 +223,39 @@ export function AddItemModal({ open, onOpenChange, onAdd, subcategoryNames = [] 
             </>
           )}
 
-          {mode === 'subcategory' && (
-            <div className="space-y-2">
-              <Label htmlFor="cat-name">Category name</Label>
-              <Input
-                id="cat-name"
-                placeholder="e.g. x.com links, Reading list…"
-                value={subcategoryName}
-                onChange={(e) => setSubcategoryName(e.target.value)}
-                autoFocus
-              />
-            </div>
-          )}
+          {mode === 'subcategory' && (() => {
+            const looksLikeUrl = /^https?:\/\/|^[\w-]+\.\w/.test(subcategoryName.trim())
+            return (
+              <div className="space-y-3">
+                <div className="space-y-2">
+                  <Label htmlFor="cat-name">URL pattern or name</Label>
+                  <Input
+                    id="cat-name"
+                    placeholder="e.g. x.com, Reading list…"
+                    value={subcategoryName}
+                    onChange={(e) => {
+                      setSubcategoryName(e.target.value)
+                      setSubcategoryLabel('')
+                    }}
+                    autoFocus
+                  />
+                </div>
+                {looksLikeUrl && (
+                  <div className="space-y-2">
+                    <Label htmlFor="cat-label">
+                      Label <span className="text-xs text-muted-foreground">(optional — defaults to {extractHostname(subcategoryName.trim())})</span>
+                    </Label>
+                    <Input
+                      id="cat-label"
+                      placeholder={extractHostname(subcategoryName.trim())}
+                      value={subcategoryLabel}
+                      onChange={(e) => setSubcategoryLabel(e.target.value)}
+                    />
+                  </div>
+                )}
+              </div>
+            )
+          })()}
 
           <div className="flex justify-end gap-2">
             <Button type="button" variant="ghost" onClick={() => handleClose(false)}>
@@ -251,6 +275,15 @@ export function AddItemModal({ open, onOpenChange, onAdd, subcategoryNames = [] 
       </DialogContent>
     </Dialog>
   )
+}
+
+function extractHostname(input: string): string {
+  try {
+    const url = input.startsWith('http') ? input : `https://${input}`
+    return new URL(url).hostname.replace(/^www\./, '')
+  } catch {
+    return input
+  }
 }
 
 function CategoryField({
