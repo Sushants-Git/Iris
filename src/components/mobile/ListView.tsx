@@ -211,7 +211,7 @@ function SubcategorySection({
           ))}
         </div>
       )}
-      <div className="mt-4 mb-2 h-px bg-border" />
+      <div className="mt-4 mb-4 h-px bg-border" />
     </div>
   )
 }
