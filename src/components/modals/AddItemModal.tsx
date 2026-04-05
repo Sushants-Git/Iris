@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Loader2, Link2, FileText } from 'lucide-react'
+import { Loader2, Link2, FileText, FolderOpen } from 'lucide-react'
 import { useMediaQuery } from '@/hooks/useMediaQuery'
 import {
   Dialog,
@@ -15,25 +15,30 @@ import { previewApi } from '@/lib/api-client'
 import type { CreateItemPayload } from '@/lib/api-client'
 import type { PreviewResult } from '@/types'
 
-type Mode = 'link' | 'note'
+type Mode = 'link' | 'note' | 'subcategory'
 
 interface Props {
   open: boolean
   onOpenChange: (v: boolean) => void
   onAdd: (payload: CreateItemPayload) => void
+  subcategoryNames?: string[]
 }
 
-export function AddItemModal({ open, onOpenChange, onAdd }: Props) {
+export function AddItemModal({ open, onOpenChange, onAdd, subcategoryNames = [] }: Props) {
   const isMobile = useMediaQuery('(max-width: 768px)')
   const [mode, setMode] = useState<Mode>('link')
   const [url, setUrl] = useState('')
   const [noteContent, setNoteContent] = useState('')
+  const [subcategoryName, setSubcategoryName] = useState('')
+  const [itemSubcategory, setItemSubcategory] = useState('')
   const [preview, setPreview] = useState<PreviewResult | null>(null)
   const [fetching, setFetching] = useState(false)
 
   function reset() {
     setUrl('')
     setNoteContent('')
+    setSubcategoryName('')
+    setItemSubcategory('')
     setPreview(null)
     setFetching(false)
   }
@@ -76,14 +81,30 @@ export function AddItemModal({ open, onOpenChange, onAdd }: Props) {
         scrapedTitle: preview?.title ?? undefined,
         scrapedDescription: preview?.description ?? undefined,
         scrapedThumbnail: preview?.thumbnail ?? undefined,
+        subcategory: itemSubcategory.trim() || undefined,
         ...(isYouTube ? { width: 220, height: 276 } : {}),
       })
-    } else {
+    } else if (mode === 'note') {
       if (!noteContent.trim()) return
-      onAdd({ type: 'note', noteContent: noteContent.trim() })
+      onAdd({
+        type: 'note',
+        noteContent: noteContent.trim(),
+        subcategory: itemSubcategory.trim() || undefined,
+      })
+    } else {
+      const name = subcategoryName.trim()
+      if (!name) return
+      onAdd({ type: 'subcategory', customTitle: name })
     }
     handleClose(false)
   }
+
+  const tabClass = (m: Mode) =>
+    `flex-1 flex items-center justify-center gap-2 py-1.5 px-3 rounded-md text-sm font-medium transition-colors ${
+      mode === m
+        ? 'bg-background shadow-sm text-foreground'
+        : 'text-muted-foreground hover:text-foreground'
+    }`
 
   return (
     <Dialog open={open} onOpenChange={handleClose}>
@@ -94,34 +115,22 @@ export function AddItemModal({ open, onOpenChange, onAdd }: Props) {
 
         {/* Mode toggle */}
         <div className="flex gap-1 p-1 bg-muted rounded-lg">
-          <button
-            type="button"
-            onClick={() => setMode('link')}
-            className={`flex-1 flex items-center justify-center gap-2 py-1.5 px-3 rounded-md text-sm font-medium transition-colors ${
-              mode === 'link'
-                ? 'bg-background shadow-sm text-foreground'
-                : 'text-muted-foreground hover:text-foreground'
-            }`}
-          >
+          <button type="button" onClick={() => setMode('link')} className={tabClass('link')}>
             <Link2 className="w-3.5 h-3.5" />
             Link
           </button>
-          <button
-            type="button"
-            onClick={() => setMode('note')}
-            className={`flex-1 flex items-center justify-center gap-2 py-1.5 px-3 rounded-md text-sm font-medium transition-colors ${
-              mode === 'note'
-                ? 'bg-background shadow-sm text-foreground'
-                : 'text-muted-foreground hover:text-foreground'
-            }`}
-          >
+          <button type="button" onClick={() => setMode('note')} className={tabClass('note')}>
             <FileText className="w-3.5 h-3.5" />
             Note
+          </button>
+          <button type="button" onClick={() => setMode('subcategory')} className={tabClass('subcategory')}>
+            <FolderOpen className="w-3.5 h-3.5" />
+            Category
           </button>
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-4">
-          {mode === 'link' ? (
+          {mode === 'link' && (
             <>
               <div className="space-y-2">
                 <Label htmlFor="url">URL</Label>
@@ -175,16 +184,44 @@ export function AddItemModal({ open, onOpenChange, onAdd }: Props) {
                   Could not load preview — will show as a plain link card.
                 </p>
               )}
+
+              <CategoryField
+                value={itemSubcategory}
+                onChange={setItemSubcategory}
+                suggestions={subcategoryNames}
+              />
             </>
-          ) : (
+          )}
+
+          {mode === 'note' && (
+            <>
+              <div className="space-y-2">
+                <Label htmlFor="note">Note</Label>
+                <Textarea
+                  id="note"
+                  placeholder="Write something…"
+                  value={noteContent}
+                  onChange={(e) => setNoteContent(e.target.value)}
+                  rows={5}
+                  autoFocus
+                />
+              </div>
+              <CategoryField
+                value={itemSubcategory}
+                onChange={setItemSubcategory}
+                suggestions={subcategoryNames}
+              />
+            </>
+          )}
+
+          {mode === 'subcategory' && (
             <div className="space-y-2">
-              <Label htmlFor="note">Note</Label>
-              <Textarea
-                id="note"
-                placeholder="Write something…"
-                value={noteContent}
-                onChange={(e) => setNoteContent(e.target.value)}
-                rows={5}
+              <Label htmlFor="cat-name">Category name</Label>
+              <Input
+                id="cat-name"
+                placeholder="e.g. x.com links, Reading list…"
+                value={subcategoryName}
+                onChange={(e) => setSubcategoryName(e.target.value)}
                 autoFocus
               />
             </div>
@@ -198,7 +235,7 @@ export function AddItemModal({ open, onOpenChange, onAdd }: Props) {
               type="submit"
               disabled={
                 fetching ||
-                (mode === 'link' ? !url.trim() : !noteContent.trim())
+                (mode === 'link' ? !url.trim() : mode === 'note' ? !noteContent.trim() : !subcategoryName.trim())
               }
             >
               Add
@@ -207,5 +244,40 @@ export function AddItemModal({ open, onOpenChange, onAdd }: Props) {
         </form>
       </DialogContent>
     </Dialog>
+  )
+}
+
+function CategoryField({
+  value,
+  onChange,
+  suggestions,
+}: {
+  value: string
+  onChange: (v: string) => void
+  suggestions: string[]
+}) {
+  return (
+    <div className="space-y-2">
+      <Label htmlFor="item-category" className="text-muted-foreground">
+        Category <span className="text-xs">(optional)</span>
+      </Label>
+      <Input
+        id="item-category"
+        placeholder="Assign to a category…"
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        list="category-suggestions"
+        autoCapitalize="off"
+        autoCorrect="off"
+        autoComplete="off"
+      />
+      {suggestions.length > 0 && (
+        <datalist id="category-suggestions">
+          {suggestions.map((s) => (
+            <option key={s} value={s} />
+          ))}
+        </datalist>
+      )}
+    </div>
   )
 }
