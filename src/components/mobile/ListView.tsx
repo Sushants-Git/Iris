@@ -146,7 +146,7 @@ function SubcategorySection({
   }
 
   return (
-    <div className="mb-4">
+    <div className="mb-2">
       <div className="flex items-center gap-2 pt-2 pb-1">
         <FolderOpen className="w-4 h-4 text-muted-foreground shrink-0" />
         {renaming ? (
@@ -211,6 +211,7 @@ function SubcategorySection({
           ))}
         </div>
       )}
+      <div className="mt-4 mb-2 h-px bg-border" />
     </div>
   )
 }
