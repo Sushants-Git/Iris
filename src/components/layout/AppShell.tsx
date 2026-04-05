@@ -1,18 +1,23 @@
 import { useState, useEffect } from 'react'
 import { Outlet } from 'react-router-dom'
-import { Menu } from 'lucide-react'
+import { Menu, Clock } from 'lucide-react'
 import { Sidebar } from './Sidebar'
+import { WorkLogPanel } from '@/components/WorkLogPanel'
 import { useMediaQuery } from '@/hooks/useMediaQuery'
 import { cn } from '@/lib/utils'
 
 export function AppShell() {
   const isMobile = useMediaQuery('(max-width: 768px)')
   const [sidebarOpen, setSidebarOpen] = useState(false)
+  const [workLogOpen, setWorkLogOpen] = useState(false)
 
   useEffect(() => {
-    if (isMobile) return
     function onKeyDown(e: KeyboardEvent) {
-      if ((e.metaKey || e.ctrlKey) && e.key === 'j') {
+      if ((e.metaKey || e.ctrlKey) && e.key === 'l') {
+        e.preventDefault()
+        setWorkLogOpen((v) => !v)
+      }
+      if (!isMobile && (e.metaKey || e.ctrlKey) && e.key === 'j') {
         e.preventDefault()
         setSidebarOpen((v) => !v)
       }
@@ -33,10 +38,17 @@ export function AppShell() {
           >
             <Menu className="w-5 h-5" />
           </button>
-          <span className="font-semibold text-sm">Iris</span>
+          <span className="font-semibold text-sm flex-1">Iris</span>
+          <button
+            onClick={() => setWorkLogOpen((v) => !v)}
+            className="p-1 rounded-md hover:bg-muted text-muted-foreground"
+            aria-label="Work log"
+          >
+            <Clock className="w-5 h-5" />
+          </button>
         </header>
 
-        {/* Click-outside backdrop */}
+        {/* Sidebar backdrop */}
         {sidebarOpen && (
           <div
             className="fixed inset-0 z-40"
@@ -44,7 +56,7 @@ export function AppShell() {
           />
         )}
 
-        {/* Floating panel — anchored top-left to align with menu button */}
+        {/* Floating sidebar panel */}
         <div
           className={cn(
             'fixed top-16 left-3 z-50 transition-all duration-300 ease-in-out',
@@ -60,13 +72,15 @@ export function AppShell() {
         <main className="flex-1 overflow-auto">
           <Outlet />
         </main>
+
+        <WorkLogPanel open={workLogOpen} onClose={() => setWorkLogOpen(false)} />
       </div>
     )
   }
 
   return (
     <div className="flex h-full">
-      {/* Floating sidebar — always mounted so the close animation plays */}
+      {/* Floating sidebar */}
       <div
         className={cn(
           'fixed top-3 right-3 z-40 transition-all duration-300 ease-in-out',
@@ -79,6 +93,8 @@ export function AppShell() {
       <main className="flex-1 overflow-hidden">
         <Outlet />
       </main>
+
+      <WorkLogPanel open={workLogOpen} onClose={() => setWorkLogOpen(false)} />
     </div>
   )
 }
