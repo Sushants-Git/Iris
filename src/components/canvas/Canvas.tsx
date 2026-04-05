@@ -51,10 +51,11 @@ export function Canvas({
   const [showMinimap, setShowMinimap] = useState(false)
   const minimapTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
-  // Clear highlight and search when board changes (Canvas doesn't remount between boards)
+  // Clear highlight and search, and reset canvas view when board changes
   useEffect(() => {
     setHighlightId(null)
     setCmdOpen(false)
+    reset()
   }, [boardId])
 
   function flashMinimap() {
