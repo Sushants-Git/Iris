@@ -1,6 +1,6 @@
 import { pgTable, uuid, text, real, timestamp, pgEnum } from 'drizzle-orm/pg-core'
 
-export const itemTypeEnum = pgEnum('item_type', ['link', 'note'])
+export const itemTypeEnum = pgEnum('item_type', ['link', 'note', 'subcategory'])
 export const statusEnum = pgEnum('status', ['pending', 'done'])
 
 export const boards = pgTable('boards', {
@@ -30,6 +30,9 @@ export const items = pgTable('items', {
 
   // Note field
   noteContent: text('note_content'),
+
+  // Subcategory grouping (label this item belongs to)
+  subcategory: text('subcategory'),
 
   // Canvas position
   x: real('x').notNull().default(100),

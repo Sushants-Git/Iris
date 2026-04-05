@@ -124,12 +124,14 @@ app.get('/boards/:boardId/items', async (c) => {
 })
 
 const createItemSchema = z.object({
-  type: z.enum(['link', 'note']),
+  type: z.enum(['link', 'note', 'subcategory']),
   url: z.string().url().optional(),
   scrapedTitle: z.string().optional(),
   scrapedDescription: z.string().optional(),
   scrapedThumbnail: z.string().optional(),
+  customTitle: z.string().optional(),
   noteContent: z.string().optional(),
+  subcategory: z.string().optional(),
   x: z.number().optional(),
   y: z.number().optional(),
   width: z.number().optional(),
@@ -151,7 +153,9 @@ app.post(
         scrapedTitle: body.scrapedTitle ?? null,
         scrapedDescription: body.scrapedDescription ?? null,
         scrapedThumbnail: body.scrapedThumbnail ?? null,
+        customTitle: body.customTitle ?? null,
         noteContent: body.noteContent ?? null,
+        subcategory: body.subcategory ?? null,
         x: body.x ?? 100,
         y: body.y ?? 100,
         width: body.width ?? 320,
@@ -167,6 +171,7 @@ const updateItemSchema = z.object({
   customDescription: z.string().nullable().optional(),
   customThumbnail: z.string().nullable().optional(),
   noteContent: z.string().nullable().optional(),
+  subcategory: z.string().nullable().optional(),
   x: z.number().optional(),
   y: z.number().optional(),
   width: z.number().optional(),

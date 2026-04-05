@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Plus, Copy, Check, Trash2, Link, Search } from 'lucide-react'
+import { Plus, Copy, Check, Trash2, Link, Search, FolderOpen } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { ListItem } from './ListItem'
 import { AddItemModal } from '@/components/modals/AddItemModal'
@@ -83,6 +83,16 @@ function ImageGridItem({
   )
 }
 
+function SubcategoryHeader({ name }: { name: string }) {
+  return (
+    <div className="flex items-center gap-2 pt-2 pb-1">
+      <FolderOpen className="w-4 h-4 text-muted-foreground shrink-0" />
+      <span className="text-sm font-semibold text-foreground">{name}</span>
+      <div className="flex-1 h-px bg-border" />
+    </div>
+  )
+}
+
 export function ListView({
   items,
   isLoading,
@@ -94,7 +104,6 @@ export function ListView({
   const [query, setQuery] = useState('')
 
   const sorted = [...items].sort((a, b) => {
-    // done items sink to the bottom
     if (a.status !== b.status) return a.status === 'done' ? 1 : -1
     return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
   })
@@ -110,12 +119,29 @@ export function ListView({
       })
     : sorted
 
+  // Separate item types
   const imageItems = filtered.filter(
     (item) => item.type === 'link' && item.url && isImageUrl(item.url),
   )
+  const subcategoryHeaders = filtered.filter((item) => item.type === 'subcategory')
   const regularItems = filtered.filter(
-    (item) => !(item.type === 'link' && item.url && isImageUrl(item.url)),
+    (item) =>
+      item.type !== 'subcategory' &&
+      !(item.type === 'link' && item.url && isImageUrl(item.url)),
   )
+
+  // Build grouped structure: subcategory name → items
+  const groups: { name: string; items: Item[] }[] = subcategoryHeaders.map((header) => {
+    const name = getTitle(header)
+    return {
+      name,
+      items: regularItems.filter((item) => item.subcategory === name),
+    }
+  })
+  const ungrouped = regularItems.filter((item) => !item.subcategory)
+
+  const subcategoryNames = subcategoryHeaders.map((h) => getTitle(h))
+  const isEmpty = imageItems.length === 0 && subcategoryHeaders.length === 0 && regularItems.length === 0
 
   return (
     <div className="flex flex-col h-full">
@@ -133,13 +159,14 @@ export function ListView({
         </div>
       </div>
 
-      <div className="flex-1 overflow-y-auto px-4 pb-24 space-y-3">
+      {/* pt-2 gives room for the status dot that overflows the first card's top border */}
+      <div className="flex-1 overflow-y-auto px-4 pt-2 pb-24 space-y-3">
         {isLoading &&
           Array.from({ length: 3 }).map((_, i) => (
             <div key={i} className="h-24 rounded-xl bg-muted animate-pulse" />
           ))}
 
-        {!isLoading && filtered.length === 0 && (
+        {!isLoading && isEmpty && (
           <div className="flex flex-col items-center justify-center h-48 gap-2">
             <p className="text-muted-foreground text-sm">
               {query ? 'No results' : 'Nothing here yet'}
@@ -164,7 +191,29 @@ export function ListView({
           </div>
         )}
 
-        {regularItems.map((item) => (
+        {/* Subcategory groups */}
+        {groups.map(({ name, items: groupItems }) => (
+          <div key={name}>
+            <SubcategoryHeader name={name} />
+            {groupItems.length === 0 ? (
+              <p className="text-xs text-muted-foreground pl-6 py-2">No items yet</p>
+            ) : (
+              <div className="space-y-3">
+                {groupItems.map((item) => (
+                  <ListItem
+                    key={item.id}
+                    item={item}
+                    onStatusToggle={(status) => onStatusToggle(item.id, status)}
+                    onDelete={() => onDelete(item.id)}
+                  />
+                ))}
+              </div>
+            )}
+          </div>
+        ))}
+
+        {/* Ungrouped items */}
+        {ungrouped.map((item) => (
           <ListItem
             key={item.id}
             item={item}
@@ -174,7 +223,7 @@ export function ListView({
         ))}
       </div>
 
-      {/* FAB — fixed so it never scrolls behind the header */}
+      {/* FAB */}
       <button
         onClick={() => setAddOpen(true)}
         className="fixed bottom-6 right-4 z-30 w-12 h-12 rounded-full bg-primary text-primary-foreground shadow-lg flex items-center justify-center"
@@ -187,6 +236,7 @@ export function ListView({
         open={addOpen}
         onOpenChange={setAddOpen}
         onAdd={onCreateItem}
+        subcategoryNames={subcategoryNames}
       />
     </div>
   )

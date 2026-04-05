@@ -1,4 +1,4 @@
-export type ItemType = 'link' | 'note'
+export type ItemType = 'link' | 'note' | 'subcategory'
 export type Status = 'pending' | 'done'
 
 export interface Board {
@@ -20,6 +20,7 @@ export interface Item {
   customDescription: string | null
   customThumbnail: string | null
   noteContent: string | null
+  subcategory: string | null
   x: number
   y: number
   width: number
@@ -40,6 +41,7 @@ export interface PreviewResult {
 
 // Derived helpers
 export function getTitle(item: Item): string {
+  if (item.type === 'subcategory') return item.customTitle ?? 'Unnamed Category'
   return item.customTitle ?? item.scrapedTitle ?? item.url ?? 'Untitled'
 }
 

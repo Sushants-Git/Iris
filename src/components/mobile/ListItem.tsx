@@ -85,7 +85,7 @@ export function ListItem({ item, onStatusToggle, onDelete }: Props) {
         />
       </button>
 
-      {/* Clickable area — opens link or is just layout for notes */}
+      {/* Clickable body — opens link for link items */}
       {item.type === 'link' && item.url ? (
         <a
           href={item.url}

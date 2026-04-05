@@ -56,12 +56,14 @@ export const boardsApi = {
 // ─── Items ────────────────────────────────────────────────────────────────────
 
 export type CreateItemPayload = {
-  type: 'link' | 'note'
+  type: 'link' | 'note' | 'subcategory'
   url?: string
   scrapedTitle?: string
   scrapedDescription?: string
   scrapedThumbnail?: string
+  customTitle?: string
   noteContent?: string
+  subcategory?: string
   x?: number
   y?: number
   width?: number
@@ -73,6 +75,7 @@ export type UpdateItemPayload = {
   customDescription?: string | null
   customThumbnail?: string | null
   noteContent?: string | null
+  subcategory?: string | null
   x?: number
   y?: number
   width?: number
