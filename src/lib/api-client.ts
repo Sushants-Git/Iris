@@ -104,6 +104,28 @@ export const itemsApi = {
     request<{ ok: boolean }>(`/items/${id}`, { method: 'DELETE' }),
 }
 
+// ─── Work Log ─────────────────────────────────────────────────────────────────
+
+export type WorkEntryPayload = {
+  id: string
+  title: string
+  tag: 'work' | 'personal'
+  startedAt: string
+  endedAt: string | null
+  totalPausedMs: number
+}
+
+export const workLogApi = {
+  list: () => request<WorkEntryPayload[]>('/work-log'),
+  save: (entry: WorkEntryPayload) =>
+    request<{ ok: boolean }>('/work-log', {
+      method: 'POST',
+      body: JSON.stringify(entry),
+    }),
+  delete: (id: string) =>
+    request<{ ok: boolean }>(`/work-log/${id}`, { method: 'DELETE' }),
+}
+
 // ─── Preview ──────────────────────────────────────────────────────────────────
 
 export const previewApi = {

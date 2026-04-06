@@ -14,22 +14,26 @@ function formatTime(iso: string) {
   })
 }
 
+function sameDay(a: Date, b: Date) {
+  return (
+    a.getFullYear() === b.getFullYear() &&
+    a.getMonth() === b.getMonth() &&
+    a.getDate() === b.getDate()
+  )
+}
+
 function formatDateGroup(iso: string): string {
   const d = new Date(iso)
   const today = new Date()
   const yesterday = new Date()
   yesterday.setDate(today.getDate() - 1)
-  const same = (a: Date, b: Date) =>
-    a.getFullYear() === b.getFullYear() &&
-    a.getMonth() === b.getMonth() &&
-    a.getDate() === b.getDate()
-  if (same(d, today)) return 'Today'
-  if (same(d, yesterday)) return 'Yesterday'
+  if (sameDay(d, today)) return 'Today'
+  if (sameDay(d, yesterday)) return 'Yesterday'
   return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
 }
 
 function groupByDate(entries: WorkEntry[]): [string, WorkEntry[]][] {
-  const done = entries
+  const done = [...entries]
     .filter((e) => e.status === 'done')
     .sort((a, b) => new Date(b.startedAt).getTime() - new Date(a.startedAt).getTime())
   const map = new Map<string, WorkEntry[]>()
@@ -39,6 +43,14 @@ function groupByDate(entries: WorkEntry[]): [string, WorkEntry[]][] {
     map.get(key)!.push(e)
   }
   return [...map.entries()]
+}
+
+function entryActiveMs(e: WorkEntry): number {
+  if (!e.endedAt) return 0
+  return Math.max(
+    0,
+    new Date(e.endedAt).getTime() - new Date(e.startedAt).getTime() - e.totalPausedMs,
+  )
 }
 
 function tagStyle(tag: WorkTag) {
@@ -61,7 +73,37 @@ function TagBadge({ tag }: { tag: WorkTag }) {
   )
 }
 
-// ── Live timer ─────────────────────────────────────────────────────────────────
+// ── Day totals summary ────────────────────────────────────────────────────────
+
+function DaySummary({ entries }: { entries: WorkEntry[] }) {
+  const workMs = entries
+    .filter((e) => e.tag === 'work')
+    .reduce((sum, e) => sum + entryActiveMs(e), 0)
+  const personalMs = entries
+    .filter((e) => e.tag === 'personal')
+    .reduce((sum, e) => sum + entryActiveMs(e), 0)
+
+  if (workMs === 0 && personalMs === 0) return null
+
+  return (
+    <div className="flex items-center gap-3 mt-0.5 mb-1">
+      {workMs > 0 && (
+        <span className="flex items-center gap-1 text-xs text-blue-600 dark:text-blue-400 font-medium">
+          <Briefcase className="w-3 h-3" />
+          {formatDuration(workMs)}
+        </span>
+      )}
+      {personalMs > 0 && (
+        <span className="flex items-center gap-1 text-xs text-purple-600 dark:text-purple-400 font-medium">
+          <User className="w-3 h-3" />
+          {formatDuration(personalMs)}
+        </span>
+      )}
+    </div>
+  )
+}
+
+// ── Live timer ────────────────────────────────────────────────────────────────
 
 function LiveTimer({ entry }: { entry: WorkEntry }) {
   const [ms, setMs] = useState(() => getActiveMs(entry))
@@ -82,7 +124,7 @@ function LiveTimer({ entry }: { entry: WorkEntry }) {
   )
 }
 
-// ── Active session card ────────────────────────────────────────────────────────
+// ── Active session card ───────────────────────────────────────────────────────
 
 function ActiveCard({
   entry,
@@ -96,7 +138,6 @@ function ActiveCard({
   onStop: () => void
 }) {
   const isPaused = entry.status === 'paused'
-
   return (
     <div className="mx-4 mb-4 rounded-2xl border border-border bg-card p-4 space-y-3">
       <div className="flex items-start justify-between gap-2">
@@ -142,7 +183,7 @@ function ActiveCard({
   )
 }
 
-// ── New entry form ─────────────────────────────────────────────────────────────
+// ── New entry form ────────────────────────────────────────────────────────────
 
 function NewEntryForm({ onStart }: { onStart: (title: string, tag: WorkTag) => void }) {
   const [title, setTitle] = useState('')
@@ -172,7 +213,6 @@ function NewEntryForm({ onStart }: { onStart: (title: string, tag: WorkTag) => v
         className="w-full px-3 py-2.5 rounded-lg bg-muted border-0 outline-none text-sm placeholder:text-muted-foreground"
       />
       <div className="flex items-center gap-2">
-        {/* Tag toggle */}
         <div className="flex gap-1 p-1 bg-muted rounded-lg flex-1">
           {(['work', 'personal'] as WorkTag[]).map((t) => (
             <button
@@ -204,22 +244,10 @@ function NewEntryForm({ onStart }: { onStart: (title: string, tag: WorkTag) => v
   )
 }
 
-// ── History ────────────────────────────────────────────────────────────────────
+// ── History entry ─────────────────────────────────────────────────────────────
 
-function HistoryEntry({
-  entry,
-  onRemove,
-}: {
-  entry: WorkEntry
-  onRemove: () => void
-}) {
-  const doneMs =
-    entry.endedAt && entry.startedAt
-      ? new Date(entry.endedAt).getTime() -
-        new Date(entry.startedAt).getTime() -
-        entry.totalPausedMs
-      : 0
-
+function HistoryEntry({ entry, onRemove }: { entry: WorkEntry; onRemove: () => void }) {
+  const doneMs = entryActiveMs(entry)
   return (
     <div className="flex items-start gap-2 py-2 group">
       <div className="flex-1 min-w-0 space-y-0.5">
@@ -232,9 +260,7 @@ function HistoryEntry({
             {formatTime(entry.startedAt)}
             {entry.endedAt && ` – ${formatTime(entry.endedAt)}`}
           </span>
-          <span className="text-xs text-muted-foreground font-mono">
-            {formatDuration(doneMs)}
-          </span>
+          <span className="text-xs text-muted-foreground font-mono">{formatDuration(doneMs)}</span>
         </div>
       </div>
       <button
@@ -247,18 +273,12 @@ function HistoryEntry({
   )
 }
 
-// ── Panel ──────────────────────────────────────────────────────────────────────
+// ── Panel ─────────────────────────────────────────────────────────────────────
 
-interface Props {
-  open: boolean
-  onClose: () => void
-}
-
-export function WorkLogPanel({ open, onClose }: Props) {
-  const { entries, activeEntry, start, pause, resume, stop, remove } = useWorkLog()
+export function WorkLogPanel({ open, onClose }: { open: boolean; onClose: () => void }) {
+  const { entries, activeEntry, loading, start, pause, resume, stop, remove } = useWorkLog()
   const groups = groupByDate(entries)
 
-  // Close on Escape
   useEffect(() => {
     function onKeyDown(e: KeyboardEvent) {
       if (e.key === 'Escape') onClose()
@@ -269,7 +289,6 @@ export function WorkLogPanel({ open, onClose }: Props) {
 
   return (
     <>
-      {/* Backdrop */}
       {open && (
         <div
           className="fixed inset-0 z-40 bg-black/20 backdrop-blur-[2px]"
@@ -277,12 +296,10 @@ export function WorkLogPanel({ open, onClose }: Props) {
         />
       )}
 
-      {/* Panel */}
       <div
         className={cn(
           'fixed top-0 right-0 h-full w-full max-w-sm bg-background border-l border-border z-50',
-          'flex flex-col shadow-2xl',
-          'transition-transform duration-300 ease-in-out',
+          'flex flex-col shadow-2xl transition-transform duration-300 ease-in-out',
           open ? 'translate-x-0' : 'translate-x-full',
         )}
       >
@@ -291,7 +308,7 @@ export function WorkLogPanel({ open, onClose }: Props) {
           <Clock className="w-4 h-4 text-muted-foreground" />
           <span className="font-semibold text-sm flex-1">Work Log</span>
           <kbd className="text-xs text-muted-foreground bg-muted px-1.5 py-0.5 rounded font-mono">
-            Ctrl+L
+            Ctrl+I
           </kbd>
           <button
             onClick={onClose}
@@ -302,7 +319,6 @@ export function WorkLogPanel({ open, onClose }: Props) {
         </div>
 
         <div className="flex-1 overflow-y-auto">
-          {/* Active session */}
           <div className="pt-4">
             {activeEntry ? (
               <ActiveCard
@@ -316,25 +332,30 @@ export function WorkLogPanel({ open, onClose }: Props) {
             )}
           </div>
 
-          {/* Divider */}
           <div className="mx-4 mb-4 h-px bg-border" />
 
-          {/* New entry form */}
           <NewEntryForm onStart={start} />
 
-          {/* History */}
-          {groups.length > 0 && (
+          {loading && (
+            <p className="px-4 text-xs text-muted-foreground animate-pulse">Loading history…</p>
+          )}
+
+          {!loading && groups.length > 0 && (
             <div className="px-4 pb-8">
               <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-3">
                 History
               </p>
-              <div className="space-y-4">
+              <div className="space-y-5">
                 {groups.map(([date, dateEntries]) => (
                   <div key={date}>
-                    <p className="text-xs font-medium text-muted-foreground mb-1 flex items-center gap-1">
-                      <ChevronRight className="w-3 h-3" />
-                      {date}
-                    </p>
+                    {/* Date header + daily totals */}
+                    <div className="mb-1">
+                      <p className="text-xs font-medium text-muted-foreground flex items-center gap-1">
+                        <ChevronRight className="w-3 h-3" />
+                        {date}
+                      </p>
+                      <DaySummary entries={dateEntries} />
+                    </div>
                     <div className="divide-y divide-border">
                       {dateEntries.map((entry) => (
                         <HistoryEntry

@@ -1,7 +1,7 @@
 import { Hono } from 'hono'
 import { zValidator } from '@hono/zod-validator'
 import { z } from 'zod'
-import { eq, desc } from 'drizzle-orm'
+import { eq, desc, sql } from 'drizzle-orm'
 import { load } from 'cheerio'
 import { neon } from '@neondatabase/serverless'
 import { drizzle } from 'drizzle-orm/neon-http'
@@ -199,6 +199,59 @@ app.patch(
 app.delete('/items/:id', async (c) => {
   const db = getDb()
   await db.delete(schema.items).where(eq(schema.items.id, c.req.param('id')))
+  return c.json({ ok: true })
+})
+
+// ─── WORK LOG ─────────────────────────────────────────────────────────────────
+
+const workEntrySchema = z.object({
+  id: z.string().min(1),
+  title: z.string().min(1),
+  tag: z.enum(['work', 'personal']),
+  startedAt: z.string(),
+  endedAt: z.string().nullable(),
+  totalPausedMs: z.number().int().min(0),
+})
+
+app.get('/work-log', async (c) => {
+  const db = getDb()
+  const rows = await db
+    .select()
+    .from(schema.workEntries)
+    .orderBy(desc(schema.workEntries.startedAt))
+  return c.json(rows)
+})
+
+app.post(
+  '/work-log',
+  zValidator('json', workEntrySchema),
+  async (c) => {
+    const db = getDb()
+    const body = c.req.valid('json')
+    await db
+      .insert(schema.workEntries)
+      .values({
+        id: body.id,
+        title: body.title,
+        tag: body.tag,
+        startedAt: new Date(body.startedAt),
+        endedAt: body.endedAt ? new Date(body.endedAt) : null,
+        totalPausedMs: body.totalPausedMs,
+      })
+      .onConflictDoUpdate({
+        target: schema.workEntries.id,
+        set: {
+          endedAt: sql`excluded.ended_at`,
+          totalPausedMs: sql`excluded.total_paused_ms`,
+        },
+      })
+    return c.json({ ok: true }, 201)
+  },
+)
+
+app.delete('/work-log/:id', async (c) => {
+  const db = getDb()
+  await db.delete(schema.workEntries).where(eq(schema.workEntries.id, c.req.param('id')))
   return c.json({ ok: true })
 })
 

@@ -1,4 +1,4 @@
-import { pgTable, uuid, text, real, timestamp, pgEnum } from 'drizzle-orm/pg-core'
+import { pgTable, uuid, text, real, timestamp, pgEnum, integer } from 'drizzle-orm/pg-core'
 
 export const itemTypeEnum = pgEnum('item_type', ['link', 'note', 'subcategory'])
 export const statusEnum = pgEnum('status', ['pending', 'done'])
@@ -44,6 +44,16 @@ export const items = pgTable('items', {
   status: statusEnum('status').notNull().default('pending'),
   createdAt: timestamp('created_at').notNull().defaultNow(),
   updatedAt: timestamp('updated_at').notNull().defaultNow(),
+})
+
+export const workEntries = pgTable('work_entries', {
+  id: text('id').primaryKey(),
+  title: text('title').notNull(),
+  tag: text('tag').notNull(),           // 'work' | 'personal'
+  startedAt: timestamp('started_at').notNull(),
+  endedAt: timestamp('ended_at'),
+  totalPausedMs: integer('total_paused_ms').notNull().default(0),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
 })
 
 export type Board = typeof boards.$inferSelect

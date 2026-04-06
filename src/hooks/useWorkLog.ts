@@ -1,18 +1,60 @@
-import { useState, useCallback } from 'react'
+import { useState, useEffect, useCallback } from 'react'
+import { workLogApi } from '@/lib/api-client'
 import type { WorkEntry, WorkTag } from '@/types/worklog'
 
-const KEY = 'iris_worklog'
+// Active/paused sessions live here (localStorage only)
+const ACTIVE_KEY = 'iris_worklog_active'
+// Legacy key (old format — all entries in one array) — migrated on first load
+const LEGACY_KEY = 'iris_worklog'
+// Flag so we know a visibility-triggered pause should auto-resume
+const AUTO_PAUSED_KEY = 'iris_worklog_autopaused'
 
-function load(): WorkEntry[] {
+// ── localStorage helpers ───────────────────────────────────────────────────────
+
+function loadActive(): WorkEntry | null {
   try {
-    return JSON.parse(localStorage.getItem(KEY) ?? '[]')
-  } catch {
-    return []
-  }
+    const str = localStorage.getItem(ACTIVE_KEY)
+    if (str) return JSON.parse(str)
+  } catch {}
+  return null
 }
 
-function persist(entries: WorkEntry[]) {
-  localStorage.setItem(KEY, JSON.stringify(entries))
+function saveActive(entry: WorkEntry | null) {
+  if (entry) localStorage.setItem(ACTIVE_KEY, JSON.stringify(entry))
+  else localStorage.removeItem(ACTIVE_KEY)
+}
+
+function loadAndClearLegacy(): WorkEntry[] {
+  try {
+    const str = localStorage.getItem(LEGACY_KEY)
+    if (!str) return []
+    const all = JSON.parse(str) as WorkEntry[]
+    // Pull active entry from legacy into new key (if not already there)
+    const active = all.find((e) => e.status === 'active' || e.status === 'paused')
+    if (active && !localStorage.getItem(ACTIVE_KEY)) saveActive(active)
+    localStorage.removeItem(LEGACY_KEY)
+    return all.filter((e) => e.status === 'done')
+  } catch {}
+  return []
+}
+
+// ── Math helpers ───────────────────────────────────────────────────────────────
+
+export function getActiveMs(entry: WorkEntry): number {
+  const totalMs = Date.now() - new Date(entry.startedAt).getTime()
+  const currentPauseMs = entry.pausedAt
+    ? Date.now() - new Date(entry.pausedAt).getTime()
+    : 0
+  return Math.max(0, totalMs - entry.totalPausedMs - currentPauseMs)
+}
+
+export function formatDuration(ms: number): string {
+  const totalSec = Math.max(0, Math.floor(ms / 1000))
+  const h = Math.floor(totalSec / 3600)
+  const m = Math.floor((totalSec % 3600) / 60)
+  const s = totalSec % 60
+  if (h > 0) return `${h}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`
+  return `${m}:${String(s).padStart(2, '0')}`
 }
 
 function terminate(e: WorkEntry): WorkEntry {
@@ -28,87 +70,162 @@ function terminate(e: WorkEntry): WorkEntry {
   }
 }
 
-export function getActiveMs(entry: WorkEntry): number {
-  const totalMs = Date.now() - new Date(entry.startedAt).getTime()
-  const currentPauseMs = entry.pausedAt
-    ? Date.now() - new Date(entry.pausedAt).getTime()
-    : 0
-  return totalMs - entry.totalPausedMs - currentPauseMs
-}
-
-export function formatDuration(ms: number): string {
-  const totalSec = Math.max(0, Math.floor(ms / 1000))
-  const h = Math.floor(totalSec / 3600)
-  const m = Math.floor((totalSec % 3600) / 60)
-  const s = totalSec % 60
-  if (h > 0) return `${h}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`
-  return `${m}:${String(s).padStart(2, '0')}`
-}
+// ── Hook ───────────────────────────────────────────────────────────────────────
 
 export function useWorkLog() {
-  const [entries, setEntries] = useState<WorkEntry[]>(load)
+  const [activeEntry, setActiveEntry] = useState<WorkEntry | null>(loadActive)
+  const [doneEntries, setDoneEntries] = useState<WorkEntry[]>([])
+  const [loading, setLoading] = useState(true)
 
-  const update = useCallback((next: WorkEntry[]) => {
-    setEntries(next)
-    persist(next)
+  // On mount: migrate legacy data → DB, then fetch done entries from DB
+  useEffect(() => {
+    async function init() {
+      const legacyDone = loadAndClearLegacy()
+
+      // Upload legacy done entries to DB (idempotent — server does onConflictDoUpdate)
+      if (legacyDone.length > 0) {
+        await Promise.allSettled(legacyDone.map((e) => workLogApi.save({
+          id: e.id,
+          title: e.title,
+          tag: e.tag,
+          startedAt: e.startedAt,
+          endedAt: e.endedAt,
+          totalPausedMs: e.totalPausedMs,
+        })))
+      }
+
+      try {
+        const rows = await workLogApi.list()
+        // API returns timestamps as strings (JSON serialized)
+        setDoneEntries(rows.map((r) => ({
+          id: r.id,
+          title: r.title,
+          tag: r.tag as WorkTag,
+          startedAt: r.startedAt,
+          endedAt: r.endedAt,
+          pausedAt: null,
+          totalPausedMs: r.totalPausedMs,
+          status: 'done' as const,
+        })))
+      } catch {}
+      setLoading(false)
+    }
+    init()
   }, [])
 
-  const activeEntry =
-    entries.find((e) => e.status === 'active' || e.status === 'paused') ?? null
-
-  function start(title: string, tag: WorkTag) {
-    const now = new Date().toISOString()
-    // Stop any running entry first
-    const stopped = entries.map((e) =>
-      e.status === 'active' || e.status === 'paused' ? terminate(e) : e,
-    )
-    const entry: WorkEntry = {
-      id: `wl-${Date.now()}`,
-      title,
-      tag,
-      startedAt: now,
-      endedAt: null,
-      pausedAt: null,
-      totalPausedMs: 0,
-      status: 'active',
+  // Visibility change: auto-pause when hidden, auto-resume when visible
+  useEffect(() => {
+    function onVisibility() {
+      if (document.hidden) {
+        setActiveEntry((prev) => {
+          if (!prev || prev.status !== 'active') return prev
+          const paused: WorkEntry = {
+            ...prev,
+            status: 'paused',
+            pausedAt: new Date().toISOString(),
+          }
+          saveActive(paused)
+          localStorage.setItem(AUTO_PAUSED_KEY, 'true')
+          return paused
+        })
+      } else {
+        const wasAuto = localStorage.getItem(AUTO_PAUSED_KEY) === 'true'
+        if (!wasAuto) return
+        localStorage.removeItem(AUTO_PAUSED_KEY)
+        setActiveEntry((prev) => {
+          if (!prev || prev.status !== 'paused') return prev
+          const pausedMs = prev.pausedAt
+            ? Date.now() - new Date(prev.pausedAt).getTime()
+            : 0
+          const resumed: WorkEntry = {
+            ...prev,
+            status: 'active',
+            pausedAt: null,
+            totalPausedMs: prev.totalPausedMs + pausedMs,
+          }
+          saveActive(resumed)
+          return resumed
+        })
+      }
     }
-    update([entry, ...stopped])
-  }
+    document.addEventListener('visibilitychange', onVisibility)
+    return () => document.removeEventListener('visibilitychange', onVisibility)
+  }, [])
 
-  function pause(id: string) {
-    update(
-      entries.map((e) =>
-        e.id === id && e.status === 'active'
-          ? { ...e, status: 'paused', pausedAt: new Date().toISOString() }
-          : e,
-      ),
-    )
-  }
+  const start = useCallback((title: string, tag: WorkTag) => {
+    // Stop any existing active entry silently
+    setActiveEntry((prev) => {
+      if (prev) {
+        const done = terminate(prev)
+        workLogApi.save({ id: done.id, title: done.title, tag: done.tag, startedAt: done.startedAt, endedAt: done.endedAt, totalPausedMs: done.totalPausedMs }).catch(() => {})
+        setDoneEntries((d) => [done, ...d])
+      }
+      const entry: WorkEntry = {
+        id: `wl-${Date.now()}`,
+        title,
+        tag,
+        startedAt: new Date().toISOString(),
+        endedAt: null,
+        pausedAt: null,
+        totalPausedMs: 0,
+        status: 'active',
+      }
+      saveActive(entry)
+      return entry
+    })
+  }, [])
 
-  function resume(id: string) {
-    update(
-      entries.map((e) => {
-        if (e.id !== id || e.status !== 'paused') return e
-        const pausedMs = e.pausedAt
-          ? Date.now() - new Date(e.pausedAt).getTime()
-          : 0
-        return {
-          ...e,
-          status: 'active',
-          pausedAt: null,
-          totalPausedMs: e.totalPausedMs + pausedMs,
-        }
-      }),
-    )
-  }
+  const pause = useCallback((id: string) => {
+    setActiveEntry((prev) => {
+      if (!prev || prev.id !== id || prev.status !== 'active') return prev
+      const updated: WorkEntry = { ...prev, status: 'paused', pausedAt: new Date().toISOString() }
+      saveActive(updated)
+      return updated
+    })
+  }, [])
 
-  function stop(id: string) {
-    update(entries.map((e) => (e.id === id ? terminate(e) : e)))
-  }
+  const resume = useCallback((id: string) => {
+    setActiveEntry((prev) => {
+      if (!prev || prev.id !== id || prev.status !== 'paused') return prev
+      const pausedMs = prev.pausedAt ? Date.now() - new Date(prev.pausedAt).getTime() : 0
+      const updated: WorkEntry = {
+        ...prev,
+        status: 'active',
+        pausedAt: null,
+        totalPausedMs: prev.totalPausedMs + pausedMs,
+      }
+      saveActive(updated)
+      return updated
+    })
+  }, [])
 
-  function remove(id: string) {
-    update(entries.filter((e) => e.id !== id))
-  }
+  const stop = useCallback((id: string) => {
+    setActiveEntry((prev) => {
+      if (!prev || prev.id !== id) return prev
+      const done = terminate(prev)
+      saveActive(null)
+      setDoneEntries((d) => [done, ...d])
+      // Save to DB — fire and forget
+      workLogApi.save({
+        id: done.id,
+        title: done.title,
+        tag: done.tag,
+        startedAt: done.startedAt,
+        endedAt: done.endedAt,
+        totalPausedMs: done.totalPausedMs,
+      }).catch(() => {})
+      return null
+    })
+  }, [])
 
-  return { entries, activeEntry, start, pause, resume, stop, remove }
+  const remove = useCallback((id: string) => {
+    setDoneEntries((d) => d.filter((e) => e.id !== id))
+    workLogApi.delete(id).catch(() => {})
+  }, [])
+
+  const entries: WorkEntry[] = activeEntry
+    ? [activeEntry, ...doneEntries]
+    : doneEntries
+
+  return { entries, activeEntry, loading, start, pause, resume, stop, remove }
 }
