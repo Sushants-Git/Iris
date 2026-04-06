@@ -230,11 +230,26 @@ export function ListView({
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
 
   const statusOrder = { in_progress: 0, pending: 1, done: 2 }
-  const sorted = [...items].sort((a, b) => {
-    const sd = statusOrder[a.status] - statusOrder[b.status]
-    if (sd !== 0) return sd
-    return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
-  })
+
+  // Stable sort: only re-orders when items are added/removed, not when status changes.
+  // This prevents cards from jumping around after a swipe gesture.
+  const prevIdKeyRef = useRef('')
+  const stableIdsRef = useRef<string[]>([])
+  const idKey = items.map(i => i.id).sort().join(',')
+  if (idKey !== prevIdKeyRef.current) {
+    prevIdKeyRef.current = idKey
+    stableIdsRef.current = [...items]
+      .sort((a, b) => {
+        const sd = statusOrder[a.status] - statusOrder[b.status]
+        if (sd !== 0) return sd
+        return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+      })
+      .map(i => i.id)
+  }
+  const itemMap = new Map(items.map(i => [i.id, i]))
+  const sorted = stableIdsRef.current
+    .map(id => itemMap.get(id))
+    .filter((i): i is Item => i !== undefined)
 
   const filtered = query.trim()
     ? sorted.filter((item) => {
