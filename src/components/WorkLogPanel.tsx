@@ -319,18 +319,16 @@ export function WorkLogPanel({ open, onClose }: { open: boolean; onClose: () => 
         </div>
 
         <div className="flex-1 overflow-y-auto">
-          <div className="pt-4">
-            {activeEntry ? (
+          {activeEntry && (
+            <div className="pt-4">
               <ActiveCard
                 entry={activeEntry}
                 onPause={() => pause(activeEntry.id)}
                 onResume={() => resume(activeEntry.id)}
                 onStop={() => stop(activeEntry.id)}
               />
-            ) : (
-              <p className="px-4 pb-3 text-xs text-muted-foreground">No active session</p>
-            )}
-          </div>
+            </div>
+          )}
 
           <div className="mx-4 mb-4 h-px bg-border" />
 
