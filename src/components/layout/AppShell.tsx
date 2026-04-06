@@ -13,7 +13,7 @@ export function AppShell() {
 
   useEffect(() => {
     function onKeyDown(e: KeyboardEvent) {
-      if ((e.metaKey || e.ctrlKey) && e.key === 'l') {
+      if ((e.metaKey || e.ctrlKey) && e.key === 'i') {
         e.preventDefault()
         setWorkLogOpen((v) => !v)
       }
