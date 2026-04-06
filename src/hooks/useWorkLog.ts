@@ -6,8 +6,6 @@ import type { WorkEntry, WorkTag } from '@/types/worklog'
 const ACTIVE_KEY = 'iris_worklog_active'
 // Legacy key (old format — all entries in one array) — migrated on first load
 const LEGACY_KEY = 'iris_worklog'
-// Flag so we know a visibility-triggered pause should auto-resume
-const AUTO_PAUSED_KEY = 'iris_worklog_autopaused'
 
 // ── localStorage helpers ───────────────────────────────────────────────────────
 
@@ -113,44 +111,6 @@ export function useWorkLog() {
     init()
   }, [])
 
-  // Visibility change: auto-pause when hidden, auto-resume when visible
-  useEffect(() => {
-    function onVisibility() {
-      if (document.hidden) {
-        setActiveEntry((prev) => {
-          if (!prev || prev.status !== 'active') return prev
-          const paused: WorkEntry = {
-            ...prev,
-            status: 'paused',
-            pausedAt: new Date().toISOString(),
-          }
-          saveActive(paused)
-          localStorage.setItem(AUTO_PAUSED_KEY, 'true')
-          return paused
-        })
-      } else {
-        const wasAuto = localStorage.getItem(AUTO_PAUSED_KEY) === 'true'
-        if (!wasAuto) return
-        localStorage.removeItem(AUTO_PAUSED_KEY)
-        setActiveEntry((prev) => {
-          if (!prev || prev.status !== 'paused') return prev
-          const pausedMs = prev.pausedAt
-            ? Date.now() - new Date(prev.pausedAt).getTime()
-            : 0
-          const resumed: WorkEntry = {
-            ...prev,
-            status: 'active',
-            pausedAt: null,
-            totalPausedMs: prev.totalPausedMs + pausedMs,
-          }
-          saveActive(resumed)
-          return resumed
-        })
-      }
-    }
-    document.addEventListener('visibilitychange', onVisibility)
-    return () => document.removeEventListener('visibilitychange', onVisibility)
-  }, [])
 
   const start = useCallback((title: string, tag: WorkTag) => {
     // Stop any existing active entry silently
