@@ -44,15 +44,14 @@ export function ListItem({ item, onStatusToggle, onDelete, isSelectMode, isSelec
     }
 
     if (gap < 300) {
-      // Double tap → done (or back to pending if already done)
-      onStatusToggle(isDone ? 'pending' : 'done')
+      // Double tap: green → yellow, anything else → green
+      onStatusToggle(item.status === 'done' ? 'pending' : 'done')
     } else {
       tapTimerRef.current = setTimeout(() => {
         tapTimerRef.current = null
-        // Single tap: pending ↔ in_progress; done → pending
-        if (item.status === 'pending') onStatusToggle('in_progress')
-        else if (item.status === 'in_progress') onStatusToggle('pending')
-        else onStatusToggle('pending') // done → pending
+        // Single tap: yellow → blue, blue → yellow, green → blue
+        if (item.status === 'in_progress') onStatusToggle('pending')
+        else onStatusToggle('in_progress')
       }, 300)
     }
   }
