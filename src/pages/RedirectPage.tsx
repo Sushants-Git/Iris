@@ -14,7 +14,9 @@ export function RedirectPage() {
       .list()
       .then(async (boards) => {
         if (boards.length > 0) {
-          navigate(`/boards/${boards[0].id}`, { replace: true })
+          const lastId = localStorage.getItem('iris_last_board')
+          const target = boards.find((b) => b.id === lastId) ?? boards[0]
+          navigate(`/boards/${target.id}`, { replace: true })
         } else {
           const board = await boardsApi.create('My Board')
           navigate(`/boards/${board.id}`, { replace: true })

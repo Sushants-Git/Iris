@@ -9,6 +9,8 @@ import { ListView } from '@/components/mobile/ListView'
 export function BoardPage() {
   const { boardId } = useParams<{ boardId: string }>()
   const isMobile = useMediaQuery('(max-width: 768px)')
+
+  if (boardId) localStorage.setItem('iris_last_board', boardId)
   const { data: boards, isLoading: boardsLoading } = useBoards()
 
   // All hooks must be called unconditionally before any early returns
