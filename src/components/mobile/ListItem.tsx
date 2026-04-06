@@ -1,4 +1,4 @@
-import { useState, useRef } from 'react'
+import { useState, useRef, useEffect } from 'react'
 import { Copy, Check, FileText, Trash2, CheckCircle2, Circle, Check as CheckIcon } from 'lucide-react'
 import { getThumbnail, getTitle, getDescription } from '@/types'
 import { formatDate } from '@/lib/utils'
@@ -19,17 +19,16 @@ const DOT_COLORS: Record<Status, string> = {
   done:        'bg-emerald-500 border-card',
 }
 
-// What status swiping in each direction resolves to
-function swipeTarget(status: Status, dir: 'right' | 'left'): Status {
-  if (dir === 'right') return status === 'done' ? 'pending' : 'done'
-  return status === 'in_progress' ? 'pending' : 'in_progress'
-}
-
-// Background color of the swipe reveal
 const SWIPE_BG: Record<Status, string> = {
   done:        'bg-emerald-500',
   in_progress: 'bg-blue-500',
   pending:     'bg-amber-400',
+}
+
+// Which status to set when swiping each direction from the current status
+function swipeTarget(status: Status, dir: 'right' | 'left'): Status {
+  if (dir === 'right') return status === 'done' ? 'pending' : 'done'
+  return status === 'in_progress' ? 'pending' : 'in_progress'
 }
 
 const THRESHOLD = 72
@@ -43,11 +42,26 @@ export function ListItem({ item, onStatusToggle, onDelete, isSelectMode, isSelec
   const [swipeX, setSwipeX] = useState(0)
   const [snapping, setSnapping] = useState(false)
 
-  const ptr = useRef<{ id: number; startX: number; startY: number; axis: 'h' | 'v' | null; triggered: boolean } | null>(null)
+  const outerRef = useRef<HTMLDivElement>(null)
+  const ptr = useRef<{ id: number; startX: number; startY: number; axis: 'h' | 'v' | null } | null>(null)
+
+  // Non-passive touchmove so we can preventDefault during horizontal swipes,
+  // preventing the scroll container from stealing the gesture.
+  useEffect(() => {
+    const el = outerRef.current
+    if (!el) return
+    function onTouchMove(e: TouchEvent) {
+      if (ptr.current?.axis === 'h') e.preventDefault()
+    }
+    el.addEventListener('touchmove', onTouchMove, { passive: false })
+    return () => el.removeEventListener('touchmove', onTouchMove)
+  }, [])
 
   function onPointerDown(e: React.PointerEvent) {
     if (isSelectMode) return
-    ptr.current = { id: e.pointerId, startX: e.clientX, startY: e.clientY, axis: null, triggered: false }
+    // Capture so we keep receiving events even if pointer leaves the element
+    e.currentTarget.setPointerCapture(e.pointerId)
+    ptr.current = { id: e.pointerId, startX: e.clientX, startY: e.clientY, axis: null }
   }
 
   function onPointerMove(e: React.PointerEvent) {
@@ -61,10 +75,8 @@ export function ListItem({ item, onStatusToggle, onDelete, isSelectMode, isSelec
     }
     if (ptr.current.axis !== 'h') return
 
-    e.preventDefault()
-    // Resist past threshold
-    const raw = dx
-    const clamped = Math.sign(raw) * Math.min(Math.abs(raw), THRESHOLD + (Math.abs(raw) - THRESHOLD) * 0.2)
+    // Rubber-band resistance past threshold
+    const clamped = Math.sign(dx) * Math.min(Math.abs(dx), THRESHOLD + (Math.abs(dx) - THRESHOLD) * 0.2)
     setSnapping(false)
     setSwipeX(clamped)
   }
@@ -72,16 +84,15 @@ export function ListItem({ item, onStatusToggle, onDelete, isSelectMode, isSelec
   function onPointerUp(e: React.PointerEvent) {
     if (!ptr.current || ptr.current.id !== e.pointerId) return
     const dx = e.clientX - ptr.current.startX
-    const wasHorizontal = ptr.current.axis === 'h'
+    const wasH = ptr.current.axis === 'h'
     ptr.current = null
 
     setSnapping(true)
     setSwipeX(0)
 
-    if (!wasHorizontal || Math.abs(dx) < THRESHOLD) return
-
-    const dir = dx > 0 ? 'right' : 'left'
-    onStatusToggle(swipeTarget(item.status, dir))
+    if (wasH && Math.abs(dx) >= THRESHOLD) {
+      onStatusToggle(swipeTarget(item.status, dx > 0 ? 'right' : 'left'))
+    }
   }
 
   function handleCopy(e: React.MouseEvent) {
@@ -94,7 +105,6 @@ export function ListItem({ item, onStatusToggle, onDelete, isSelectMode, isSelec
     })
   }
 
-  // Background shown during swipe
   const dir = swipeX > 0 ? 'right' : swipeX < 0 ? 'left' : null
   const bgStatus = dir ? swipeTarget(item.status, dir) : null
   const bgOpacity = Math.min(Math.abs(swipeX) / THRESHOLD, 1)
@@ -134,27 +144,39 @@ export function ListItem({ item, onStatusToggle, onDelete, isSelectMode, isSelec
   )
 
   return (
+    // pt-2 creates 8px of headroom so the dot at -top-1.5 on the card is visible.
+    // No overflow-hidden here — instead the swipe bg has its own clipping wrapper.
     <div
-      className="relative overflow-hidden rounded-xl"
+      ref={outerRef}
+      className="relative pt-2"
       onPointerDown={onPointerDown}
       onPointerMove={onPointerMove}
       onPointerUp={onPointerUp}
       onPointerCancel={onPointerUp}
       onClick={isSelectMode ? onToggleSelect : undefined}
     >
-      {/* Swipe background */}
-      {bgStatus && (
-        <div
-          className={`absolute inset-0 rounded-xl flex items-center ${dir === 'right' ? 'justify-start pl-5' : 'justify-end pr-5'} ${SWIPE_BG[bgStatus]}`}
-          style={{ opacity: bgOpacity }}
-        >
-          <CheckIcon
-            className={`w-5 h-5 text-white transition-transform duration-100 ${pastThreshold ? 'scale-110' : 'scale-90'}`}
-          />
-        </div>
-      )}
+      {/* Swipe reveal background — clipped to the card area (top-2 downward) */}
+      <div className="absolute inset-x-0 top-2 bottom-0 overflow-hidden rounded-xl">
+        {bgStatus && (
+          <div
+            className={[
+              'absolute inset-0 flex items-center',
+              dir === 'right' ? 'justify-start pl-5' : 'justify-end pr-5',
+              SWIPE_BG[bgStatus],
+            ].join(' ')}
+            style={{ opacity: bgOpacity }}
+          >
+            <CheckIcon
+              className={[
+                'w-5 h-5 text-white transition-transform duration-100',
+                pastThreshold ? 'scale-110' : 'scale-90',
+              ].join(' ')}
+            />
+          </div>
+        )}
+      </div>
 
-      {/* Card */}
+      {/* Card — slides horizontally */}
       <div
         className={[
           'relative flex gap-3 p-3 bg-card border rounded-xl select-none',
@@ -167,7 +189,7 @@ export function ListItem({ item, onStatusToggle, onDelete, isSelectMode, isSelec
           willChange: 'transform',
         }}
       >
-        {/* Select indicator OR status dot */}
+        {/* Status dot — sits at -top-1.5, visible in the pt-2 gap above */}
         {isSelectMode ? (
           <div className="absolute -top-1.5 left-3 z-10">
             {isSelected
