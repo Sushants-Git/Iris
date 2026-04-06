@@ -81,7 +81,7 @@ export type UpdateItemPayload = {
   width?: number
   height?: number
   rotation?: number
-  status?: 'pending' | 'done'
+  status?: 'pending' | 'in_progress' | 'done'
 }
 
 export const itemsApi = {

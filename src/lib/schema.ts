@@ -1,7 +1,7 @@
 import { pgTable, uuid, text, real, timestamp, pgEnum, integer } from 'drizzle-orm/pg-core'
 
 export const itemTypeEnum = pgEnum('item_type', ['link', 'note', 'subcategory'])
-export const statusEnum = pgEnum('status', ['pending', 'done'])
+export const statusEnum = pgEnum('status', ['pending', 'in_progress', 'done'])
 
 export const boards = pgTable('boards', {
   id: uuid('id').primaryKey().defaultRandom(),

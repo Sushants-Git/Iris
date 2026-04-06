@@ -1,5 +1,5 @@
 export type ItemType = 'link' | 'note' | 'subcategory'
-export type Status = 'pending' | 'done'
+export type Status = 'pending' | 'in_progress' | 'done'
 
 export interface Board {
   id: string

@@ -229,8 +229,10 @@ export function ListView({
   const [isSelectMode, setIsSelectMode] = useState(false)
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
 
+  const statusOrder = { in_progress: 0, pending: 1, done: 2 }
   const sorted = [...items].sort((a, b) => {
-    if (a.status !== b.status) return a.status === 'done' ? 1 : -1
+    const sd = statusOrder[a.status] - statusOrder[b.status]
+    if (sd !== 0) return sd
     return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
   })
 

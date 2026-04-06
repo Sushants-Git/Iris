@@ -195,6 +195,7 @@ export function CanvasCard({
         selected && 'ring-2 ring-primary/50',
         (isDragging || isResizing) && 'shadow-lg ring-2 ring-primary/20',
         !isImage && item.status === 'done' && 'border-b-emerald-400 border-b-2',
+        !isImage && item.status === 'in_progress' && 'border-b-blue-400 border-b-2',
         animating && 'card-highlight',
       )}
     >

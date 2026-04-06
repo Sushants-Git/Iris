@@ -177,7 +177,7 @@ const updateItemSchema = z.object({
   width: z.number().optional(),
   height: z.number().optional(),
   rotation: z.number().optional(),
-  status: z.enum(['pending', 'done']).optional(),
+  status: z.enum(['pending', 'in_progress', 'done']).optional(),
 })
 
 app.patch(
