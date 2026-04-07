@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react'
-import { X, Play, Pause, Square, Trash2, Clock, Briefcase, User, ChevronRight } from 'lucide-react'
+import { X, Play, Pause, Square, Trash2, Clock, Briefcase, User, ChevronRight, FileText } from 'lucide-react'
 import { useWorkLog, getActiveMs, formatDuration } from '@/hooks/useWorkLog'
+import { WorkNoteModal } from './WorkNoteModal'
 import { cn } from '@/lib/utils'
 import type { WorkTag, WorkEntry } from '@/types/worklog'
 
@@ -131,11 +132,13 @@ function ActiveCard({
   onPause,
   onResume,
   onStop,
+  onNotes,
 }: {
   entry: WorkEntry
   onPause: () => void
   onResume: () => void
   onStop: () => void
+  onNotes: () => void
 }) {
   const isPaused = entry.status === 'paused'
   return (
@@ -152,11 +155,25 @@ function ActiveCard({
             </span>
           </div>
         </div>
-        {isPaused && (
-          <span className="text-xs text-muted-foreground bg-muted px-2 py-0.5 rounded-full shrink-0">
-            paused
-          </span>
-        )}
+        <div className="flex items-center gap-1 shrink-0">
+          {isPaused && (
+            <span className="text-xs text-muted-foreground bg-muted px-2 py-0.5 rounded-full">
+              paused
+            </span>
+          )}
+          <button
+            onClick={onNotes}
+            className={cn(
+              'p-1.5 rounded-md transition-colors',
+              entry.notes
+                ? 'text-primary hover:bg-primary/10'
+                : 'text-muted-foreground hover:bg-muted',
+            )}
+            title="Notes"
+          >
+            <FileText className="w-3.5 h-3.5" />
+          </button>
+        </div>
       </div>
 
       <LiveTimer entry={entry} />
@@ -246,7 +263,15 @@ function NewEntryForm({ onStart }: { onStart: (title: string, tag: WorkTag) => v
 
 // ── History entry ─────────────────────────────────────────────────────────────
 
-function HistoryEntry({ entry, onRemove }: { entry: WorkEntry; onRemove: () => void }) {
+function HistoryEntry({
+  entry,
+  onRemove,
+  onNotes,
+}: {
+  entry: WorkEntry
+  onRemove: () => void
+  onNotes: () => void
+}) {
   const doneMs = entryActiveMs(entry)
   return (
     <div className="flex items-start gap-2 py-2 group">
@@ -263,12 +288,26 @@ function HistoryEntry({ entry, onRemove }: { entry: WorkEntry; onRemove: () => v
           <span className="text-xs text-muted-foreground font-mono">{formatDuration(doneMs)}</span>
         </div>
       </div>
-      <button
-        onClick={onRemove}
-        className="p-1 opacity-0 group-hover:opacity-100 text-muted-foreground hover:text-destructive transition-all shrink-0 mt-0.5"
-      >
-        <Trash2 className="w-3.5 h-3.5" />
-      </button>
+      <div className="flex items-center gap-0.5 shrink-0 mt-0.5">
+        <button
+          onClick={onNotes}
+          className={cn(
+            'p-1 transition-colors',
+            entry.notes
+              ? 'text-primary opacity-100'
+              : 'text-muted-foreground opacity-0 group-hover:opacity-100',
+          )}
+          title="Notes"
+        >
+          <FileText className="w-3.5 h-3.5" />
+        </button>
+        <button
+          onClick={onRemove}
+          className="p-1 opacity-0 group-hover:opacity-100 text-muted-foreground hover:text-destructive transition-all"
+        >
+          <Trash2 className="w-3.5 h-3.5" />
+        </button>
+      </div>
     </div>
   )
 }
@@ -276,19 +315,36 @@ function HistoryEntry({ entry, onRemove }: { entry: WorkEntry; onRemove: () => v
 // ── Panel ─────────────────────────────────────────────────────────────────────
 
 export function WorkLogPanel({ open, onClose }: { open: boolean; onClose: () => void }) {
-  const { entries, activeEntry, loading, start, pause, resume, stop, remove } = useWorkLog()
+  const { entries, activeEntry, loading, start, pause, resume, stop, remove, updateNotes } = useWorkLog()
   const groups = groupByDate(entries)
+  const [notesEntryId, setNotesEntryId] = useState<string | null>(null)
+
+  const notesEntry = notesEntryId ? entries.find((e) => e.id === notesEntryId) ?? null : null
+  const relatedEntries = notesEntry
+    ? entries.filter(
+        (e) => e.id !== notesEntry.id && e.title === notesEntry.title && !!e.notes,
+      )
+    : []
 
   useEffect(() => {
     function onKeyDown(e: KeyboardEvent) {
-      if (e.key === 'Escape') onClose()
+      if (e.key === 'Escape' && !notesEntryId) onClose()
     }
     if (open) window.addEventListener('keydown', onKeyDown)
     return () => window.removeEventListener('keydown', onKeyDown)
-  }, [open, onClose])
+  }, [open, onClose, notesEntryId])
 
   return (
     <>
+      {notesEntry && (
+        <WorkNoteModal
+          entry={notesEntry}
+          relatedEntries={relatedEntries}
+          onSave={(notes) => updateNotes(notesEntry.id, notes)}
+          onClose={() => setNotesEntryId(null)}
+        />
+      )}
+
       {open && (
         <div
           className="fixed inset-0 z-40 bg-black/20 backdrop-blur-[2px]"
@@ -326,6 +382,7 @@ export function WorkLogPanel({ open, onClose }: { open: boolean; onClose: () => 
                 onPause={() => pause(activeEntry.id)}
                 onResume={() => resume(activeEntry.id)}
                 onStop={() => stop(activeEntry.id)}
+                onNotes={() => setNotesEntryId(activeEntry.id)}
               />
             </div>
           )}
@@ -360,6 +417,7 @@ export function WorkLogPanel({ open, onClose }: { open: boolean; onClose: () => 
                           key={entry.id}
                           entry={entry}
                           onRemove={() => remove(entry.id)}
+                          onNotes={() => setNotesEntryId(entry.id)}
                         />
                       ))}
                     </div>

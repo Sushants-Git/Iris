@@ -53,6 +53,7 @@ export const workEntries = pgTable('work_entries', {
   startedAt: timestamp('started_at').notNull(),
   endedAt: timestamp('ended_at'),
   totalPausedMs: integer('total_paused_ms').notNull().default(0),
+  notes: text('notes'),
   createdAt: timestamp('created_at').notNull().defaultNow(),
 })
 

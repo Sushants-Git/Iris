@@ -10,4 +10,5 @@ export interface WorkEntry {
   pausedAt: string | null // ISO — when the current pause started
   totalPausedMs: number   // accumulated pause time in ms
   status: WorkStatus
+  notes?: string
 }

@@ -103,6 +103,7 @@ export function useWorkLog() {
           endedAt: r.endedAt,
           pausedAt: null,
           totalPausedMs: r.totalPausedMs,
+          notes: r.notes ?? undefined,
           status: 'done' as const,
         })))
       } catch {}
@@ -183,9 +184,22 @@ export function useWorkLog() {
     workLogApi.delete(id).catch(() => {})
   }, [])
 
+  const updateNotes = useCallback((id: string, notes: string) => {
+    setActiveEntry((prev) => {
+      if (prev && prev.id === id) {
+        const updated = { ...prev, notes }
+        saveActive(updated)
+        return updated
+      }
+      return prev
+    })
+    setDoneEntries((d) => d.map((e) => e.id === id ? { ...e, notes } : e))
+    workLogApi.saveNotes(id, notes).catch(() => {})
+  }, [])
+
   const entries: WorkEntry[] = activeEntry
     ? [activeEntry, ...doneEntries]
     : doneEntries
 
-  return { entries, activeEntry, loading, start, pause, resume, stop, remove }
+  return { entries, activeEntry, loading, start, pause, resume, stop, remove, updateNotes }
 }

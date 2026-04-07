@@ -211,6 +211,7 @@ const workEntrySchema = z.object({
   startedAt: z.string(),
   endedAt: z.string().nullable(),
   totalPausedMs: z.number().int().min(0),
+  notes: z.string().optional(),
 })
 
 app.get('/work-log', async (c) => {
@@ -237,15 +238,30 @@ app.post(
         startedAt: new Date(body.startedAt),
         endedAt: body.endedAt ? new Date(body.endedAt) : null,
         totalPausedMs: body.totalPausedMs,
+        notes: body.notes ?? null,
       })
       .onConflictDoUpdate({
         target: schema.workEntries.id,
         set: {
           endedAt: sql`excluded.ended_at`,
           totalPausedMs: sql`excluded.total_paused_ms`,
+          notes: sql`COALESCE(excluded.notes, work_entries.notes)`,
         },
       })
     return c.json({ ok: true }, 201)
+  },
+)
+
+app.patch(
+  '/work-log/:id/notes',
+  zValidator('json', z.object({ notes: z.string() })),
+  async (c) => {
+    const db = getDb()
+    await db
+      .update(schema.workEntries)
+      .set({ notes: c.req.valid('json').notes })
+      .where(eq(schema.workEntries.id, c.req.param('id')))
+    return c.json({ ok: true })
   },
 )
 

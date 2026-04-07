@@ -113,6 +113,7 @@ export type WorkEntryPayload = {
   startedAt: string
   endedAt: string | null
   totalPausedMs: number
+  notes?: string
 }
 
 export const workLogApi = {
@@ -121,6 +122,11 @@ export const workLogApi = {
     request<{ ok: boolean }>('/work-log', {
       method: 'POST',
       body: JSON.stringify(entry),
+    }),
+  saveNotes: (id: string, notes: string) =>
+    request<{ ok: boolean }>(`/work-log/${id}/notes`, {
+      method: 'PATCH',
+      body: JSON.stringify({ notes }),
     }),
   delete: (id: string) =>
     request<{ ok: boolean }>(`/work-log/${id}`, { method: 'DELETE' }),
