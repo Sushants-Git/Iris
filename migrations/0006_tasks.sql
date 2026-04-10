@@ -1,0 +1,6 @@
+CREATE TABLE IF NOT EXISTS tasks (
+  id TEXT PRIMARY KEY,
+  title TEXT NOT NULL,
+  url TEXT,
+  created_at TIMESTAMP NOT NULL DEFAULT NOW()
+);

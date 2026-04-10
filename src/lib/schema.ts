@@ -57,6 +57,13 @@ export const workEntries = pgTable('work_entries', {
   createdAt: timestamp('created_at').notNull().defaultNow(),
 })
 
+export const tasks = pgTable('tasks', {
+  id: text('id').primaryKey(),
+  title: text('title').notNull(),
+  url: text('url'),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+})
+
 export type Board = typeof boards.$inferSelect
 export type NewBoard = typeof boards.$inferInsert
 export type Item = typeof items.$inferSelect

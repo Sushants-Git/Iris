@@ -132,6 +132,18 @@ export const workLogApi = {
     request<{ ok: boolean }>(`/work-log/${id}`, { method: 'DELETE' }),
 }
 
+// ─── Tasks ────────────────────────────────────────────────────────────────────
+
+export type TaskPayload = { id: string; title: string; url?: string; createdAt: string }
+
+export const tasksApi = {
+  list: () => request<TaskPayload[]>('/tasks'),
+  add: (task: TaskPayload) =>
+    request<{ ok: boolean }>('/tasks', { method: 'POST', body: JSON.stringify(task) }),
+  delete: (id: string) =>
+    request<{ ok: boolean }>(`/tasks/${id}`, { method: 'DELETE' }),
+}
+
 // ─── Preview ──────────────────────────────────────────────────────────────────
 
 export const previewApi = {

@@ -271,6 +271,35 @@ app.delete('/work-log/:id', async (c) => {
   return c.json({ ok: true })
 })
 
+// ─── TASKS ────────────────────────────────────────────────────────────────────
+
+app.get('/tasks', async (c) => {
+  const db = getDb()
+  const rows = await db.select().from(schema.tasks).orderBy(desc(schema.tasks.createdAt))
+  return c.json(rows)
+})
+
+app.post(
+  '/tasks',
+  zValidator('json', z.object({ id: z.string().min(1), title: z.string().min(1), url: z.string().optional() })),
+  async (c) => {
+    const db = getDb()
+    const body = c.req.valid('json')
+    await db.insert(schema.tasks).values({
+      id: body.id,
+      title: body.title,
+      url: body.url ?? null,
+    }).onConflictDoNothing()
+    return c.json({ ok: true }, 201)
+  },
+)
+
+app.delete('/tasks/:id', async (c) => {
+  const db = getDb()
+  await db.delete(schema.tasks).where(eq(schema.tasks.id, c.req.param('id')))
+  return c.json({ ok: true })
+})
+
 // ─── PREVIEW ──────────────────────────────────────────────────────────────────
 
 const YOUTUBE_PATTERNS = [
