@@ -219,6 +219,62 @@ function NewEntryForm({ onStart, prefill }: {
   )
 }
 
+// ── Day group (collapsible) ────────────────────────────────────────────────────
+
+function DayGroup({
+  date,
+  entries,
+  defaultOpen,
+  onRemove,
+  onNotes,
+}: {
+  date: string
+  entries: WorkEntry[]
+  defaultOpen: boolean
+  onRemove: (id: string) => void
+  onNotes: (id: string) => void
+}) {
+  const [open, setOpen] = useState(defaultOpen)
+
+  const totalMs = entries.reduce((sum, e) => sum + entryActiveMs(e), 0)
+
+  return (
+    <div>
+      <button
+        onClick={() => setOpen((v) => !v)}
+        className="w-full flex items-center gap-1.5 py-0.5 text-left"
+      >
+        <ChevronRight
+          className={cn(
+            'w-3 h-3 text-muted-foreground transition-transform duration-200 shrink-0',
+            open && 'rotate-90',
+          )}
+        />
+        <span className="text-xs font-medium text-muted-foreground flex-1">{date}</span>
+        {!open && totalMs > 0 && (
+          <span className="text-xs font-mono text-muted-foreground pr-0.5">
+            {formatDuration(totalMs)}
+          </span>
+        )}
+      </button>
+      {open && <DaySummary entries={entries} />}
+
+      {open && (
+        <div className="divide-y divide-border mt-1">
+          {entries.map((entry) => (
+            <HistoryEntry
+              key={entry.id}
+              entry={entry}
+              onRemove={() => onRemove(entry.id)}
+              onNotes={() => onNotes(entry.id)}
+            />
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
 // ── History entry ──────────────────────────────────────────────────────────────
 
 function HistoryEntry({ entry, onRemove, onNotes }: {
@@ -491,26 +547,16 @@ export function WorkLogPanel({ open, onClose }: { open: boolean; onClose: () => 
                 <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-3">
                   History
                 </p>
-                <div className="space-y-5">
+                <div className="space-y-4">
                   {groups.map(([date, dateEntries]) => (
-                    <div key={date}>
-                      <div className="mb-1">
-                        <p className="text-xs font-medium text-muted-foreground flex items-center gap-1">
-                          <ChevronRight className="w-3 h-3" />{date}
-                        </p>
-                        <DaySummary entries={dateEntries} />
-                      </div>
-                      <div className="divide-y divide-border">
-                        {dateEntries.map((entry) => (
-                          <HistoryEntry
-                            key={entry.id}
-                            entry={entry}
-                            onRemove={() => remove(entry.id)}
-                            onNotes={() => setNotesEntryId(entry.id)}
-                          />
-                        ))}
-                      </div>
-                    </div>
+                    <DayGroup
+                      key={date}
+                      date={date}
+                      entries={dateEntries}
+                      defaultOpen={date === 'Today'}
+                      onRemove={remove}
+                      onNotes={setNotesEntryId}
+                    />
                   ))}
                 </div>
               </div>
