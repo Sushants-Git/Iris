@@ -159,18 +159,12 @@ function ActiveCard({ entry, onPause, onResume, onStop, onNotes }: {
 
 // ── New entry form ─────────────────────────────────────────────────────────────
 
-function NewEntryForm({ onStart, prefill }: {
-  onStart: (title: string, tag: WorkTag) => void
-  prefill?: string
-}) {
-  const [title, setTitle] = useState(prefill ?? '')
+function NewEntryForm({ onStart }: { onStart: (title: string, tag: WorkTag) => void }) {
+  const [title, setTitle] = useState('')
   const [tag, setTag] = useState<WorkTag>('work')
   const inputRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => { setTimeout(() => inputRef.current?.focus(), 50) }, [])
-
-  // If prefill changes (e.g. user clicked Start on a task), update title
-  useEffect(() => { if (prefill) setTitle(prefill) }, [prefill])
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
@@ -314,17 +308,17 @@ function HistoryEntry({ entry, onRemove, onNotes }: {
 
 // ── Task list view ─────────────────────────────────────────────────────────────
 
-function AddTaskForm({ onAdd }: { onAdd: (title: string, url?: string) => void }) {
+function AddTaskForm({ onAdd }: { onAdd: (title: string, tag: WorkTag, url?: string) => void }) {
   const [title, setTitle] = useState('')
+  const [tag, setTag] = useState<WorkTag>('work')
   const [url, setUrl] = useState('')
   const [showUrl, setShowUrl] = useState(false)
-  const inputRef = useRef<HTMLInputElement>(null)
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
     const t = title.trim()
     if (!t) return
-    onAdd(t, url.trim() || undefined)
+    onAdd(t, tag, url.trim() || undefined)
     setTitle('')
     setUrl('')
     setShowUrl(false)
@@ -332,15 +326,31 @@ function AddTaskForm({ onAdd }: { onAdd: (title: string, url?: string) => void }
 
   return (
     <form onSubmit={handleSubmit} className="mx-4 mb-4 space-y-2">
+      <input
+        type="text"
+        placeholder="Add a task…"
+        value={title}
+        onChange={(e) => setTitle(e.target.value)}
+        className="w-full px-3 py-2.5 rounded-lg bg-muted border-0 outline-none text-sm placeholder:text-muted-foreground"
+      />
       <div className="flex items-center gap-1.5">
-        <input
-          ref={inputRef}
-          type="text"
-          placeholder="Add a task…"
-          value={title}
-          onChange={(e) => setTitle(e.target.value)}
-          className="flex-1 px-3 py-2.5 rounded-lg bg-muted border-0 outline-none text-sm placeholder:text-muted-foreground"
-        />
+        {/* Tag toggle */}
+        <div className="flex gap-1 p-1 bg-muted rounded-lg flex-1">
+          {(['work', 'personal'] as WorkTag[]).map((t) => (
+            <button
+              key={t}
+              type="button"
+              onClick={() => setTag(t)}
+              className={cn(
+                'flex-1 flex items-center justify-center gap-1.5 py-1 px-2 rounded-md text-xs font-medium transition-colors',
+                tag === t ? 'bg-background shadow-sm text-foreground' : 'text-muted-foreground hover:text-foreground',
+              )}
+            >
+              {t === 'work' ? <Briefcase className="w-3 h-3" /> : <User className="w-3 h-3" />}
+              {t.charAt(0).toUpperCase() + t.slice(1)}
+            </button>
+          ))}
+        </div>
         <button
           type="button"
           onClick={() => setShowUrl((v) => !v)}
@@ -348,7 +358,7 @@ function AddTaskForm({ onAdd }: { onAdd: (title: string, url?: string) => void }
             'p-2.5 rounded-lg transition-colors shrink-0',
             showUrl ? 'bg-blue-100 text-blue-600 dark:bg-blue-900/40 dark:text-blue-400' : 'bg-muted text-muted-foreground hover:text-foreground',
           )}
-          title="Add link"
+          title="Add source link"
         >
           <Link className="w-4 h-4" />
         </button>
@@ -387,9 +397,12 @@ function TaskRow({ task, onRemove, onStart }: {
         : 'hover:bg-muted/60',
     )}>
       <div className="flex-1 min-w-0">
-        <p className={cn('text-sm font-medium leading-snug truncate', hasUrl ? 'text-blue-900 dark:text-blue-100' : 'text-foreground')}>
-          {task.title}
-        </p>
+        <div className="flex items-center gap-1.5 mb-0.5">
+          <p className={cn('text-sm font-medium leading-snug truncate', hasUrl ? 'text-blue-900 dark:text-blue-100' : 'text-foreground')}>
+            {task.title}
+          </p>
+          <TagBadge tag={task.tag ?? 'work'} />
+        </div>
         {hasUrl && (
           <a
             href={task.url}
@@ -430,7 +443,6 @@ export function WorkLogPanel({ open, onClose }: { open: boolean; onClose: () => 
   const groups = groupByDate(entries)
   const [tab, setTab] = useState<'log' | 'tasks'>('log')
   const [notesEntryId, setNotesEntryId] = useState<string | null>(null)
-  const [logPrefill, setLogPrefill] = useState<string | undefined>()
 
   const notesEntry = notesEntryId ? entries.find((e) => e.id === notesEntryId) ?? null : null
   const relatedEntries = notesEntry
@@ -438,8 +450,7 @@ export function WorkLogPanel({ open, onClose }: { open: boolean; onClose: () => 
     : []
 
   function handleStartFromTask(task: Task) {
-    start(task.title, 'work')
-    setLogPrefill(undefined)
+    start(task.title, task.tag ?? 'work')
     setTab('log')
   }
 
@@ -450,14 +461,6 @@ export function WorkLogPanel({ open, onClose }: { open: boolean; onClose: () => 
     if (open) window.addEventListener('keydown', onKeyDown)
     return () => window.removeEventListener('keydown', onKeyDown)
   }, [open, onClose, notesEntryId])
-
-  // Reset prefill once consumed
-  useEffect(() => {
-    if (logPrefill) {
-      const id = setTimeout(() => setLogPrefill(undefined), 100)
-      return () => clearTimeout(id)
-    }
-  }, [logPrefill])
 
   return (
     <>
@@ -536,7 +539,7 @@ export function WorkLogPanel({ open, onClose }: { open: boolean; onClose: () => 
 
             <div className="mx-4 mb-4 h-px bg-border" />
 
-            <NewEntryForm onStart={start} prefill={logPrefill} />
+            <NewEntryForm onStart={start} />
 
             {loading && (
               <p className="px-4 text-xs text-muted-foreground animate-pulse">Loading history…</p>

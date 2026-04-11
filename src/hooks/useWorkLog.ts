@@ -114,26 +114,26 @@ export function useWorkLog() {
 
 
   const start = useCallback((title: string, tag: WorkTag) => {
-    // Stop any existing active entry silently
-    setActiveEntry((prev) => {
-      if (prev) {
-        const done = terminate(prev)
-        workLogApi.save({ id: done.id, title: done.title, tag: done.tag, startedAt: done.startedAt, endedAt: done.endedAt, totalPausedMs: done.totalPausedMs }).catch(() => {})
-        setDoneEntries((d) => [done, ...d])
-      }
-      const entry: WorkEntry = {
-        id: `wl-${Date.now()}`,
-        title,
-        tag,
-        startedAt: new Date().toISOString(),
-        endedAt: null,
-        pausedAt: null,
-        totalPausedMs: 0,
-        status: 'active',
-      }
-      saveActive(entry)
-      return entry
-    })
+    // Read current active from localStorage (always in sync) — avoids nesting
+    // setState calls which React StrictMode would double-invoke
+    const prev = loadActive()
+    if (prev) {
+      const done = terminate(prev)
+      setDoneEntries((d) => [done, ...d])
+      workLogApi.save({ id: done.id, title: done.title, tag: done.tag, startedAt: done.startedAt, endedAt: done.endedAt, totalPausedMs: done.totalPausedMs }).catch(() => {})
+    }
+    const entry: WorkEntry = {
+      id: `wl-${Date.now()}`,
+      title,
+      tag,
+      startedAt: new Date().toISOString(),
+      endedAt: null,
+      pausedAt: null,
+      totalPausedMs: 0,
+      status: 'active',
+    }
+    saveActive(entry)
+    setActiveEntry(entry)
   }, [])
 
   const pause = useCallback((id: string) => {

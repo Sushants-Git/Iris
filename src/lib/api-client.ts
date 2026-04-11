@@ -134,7 +134,7 @@ export const workLogApi = {
 
 // ─── Tasks ────────────────────────────────────────────────────────────────────
 
-export type TaskPayload = { id: string; title: string; url?: string; createdAt: string }
+export type TaskPayload = { id: string; title: string; tag: string; url?: string; createdAt: string }
 
 export const tasksApi = {
   list: () => request<TaskPayload[]>('/tasks'),

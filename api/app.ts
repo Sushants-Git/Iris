@@ -281,13 +281,14 @@ app.get('/tasks', async (c) => {
 
 app.post(
   '/tasks',
-  zValidator('json', z.object({ id: z.string().min(1), title: z.string().min(1), url: z.string().optional() })),
+  zValidator('json', z.object({ id: z.string().min(1), title: z.string().min(1), tag: z.enum(['work', 'personal']).default('work'), url: z.string().optional() })),
   async (c) => {
     const db = getDb()
     const body = c.req.valid('json')
     await db.insert(schema.tasks).values({
       id: body.id,
       title: body.title,
+      tag: body.tag,
       url: body.url ?? null,
     }).onConflictDoNothing()
     return c.json({ ok: true }, 201)

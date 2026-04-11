@@ -60,6 +60,7 @@ export const workEntries = pgTable('work_entries', {
 export const tasks = pgTable('tasks', {
   id: text('id').primaryKey(),
   title: text('title').notNull(),
+  tag: text('tag').notNull().default('work'),  // 'work' | 'personal'
   url: text('url'),
   createdAt: timestamp('created_at').notNull().defaultNow(),
 })

@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react'
 import { tasksApi } from '@/lib/api-client'
-import type { Task } from '@/types/worklog'
+import type { Task, WorkTag } from '@/types/worklog'
 
 const CACHE_KEY = 'iris_tasks'
 
@@ -43,6 +43,7 @@ export function useTaskList() {
           ...remote.map((r) => ({
             id: r.id,
             title: r.title,
+            tag: (r.tag ?? 'work') as WorkTag,
             url: r.url ?? undefined,
             createdAt: typeof r.createdAt === 'string' ? r.createdAt : new Date(r.createdAt).toISOString(),
           })),
@@ -60,10 +61,11 @@ export function useTaskList() {
     return () => { cancelled = true }
   }, [])
 
-  const addTask = useCallback((title: string, url?: string) => {
+  const addTask = useCallback((title: string, tag: WorkTag, url?: string) => {
     const task: Task = {
       id: crypto.randomUUID(),
       title: title.trim(),
+      tag,
       url: url?.trim() || undefined,
       createdAt: new Date().toISOString(),
     }

@@ -4,6 +4,7 @@ export type WorkStatus = 'active' | 'paused' | 'done'
 export interface Task {
   id: string
   title: string
+  tag: WorkTag
   url?: string
   createdAt: string
 }
