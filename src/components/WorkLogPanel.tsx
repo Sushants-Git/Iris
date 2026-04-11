@@ -1,7 +1,8 @@
 import { useState, useEffect, useRef } from 'react'
 import {
-  X, Play, Pause, Square, Trash2, Clock, Briefcase, User,
-  ChevronRight, FileText, ListChecks, Link, ExternalLink, Plus,
+  X, Play, Pause, Square, Trash2, Clock,
+  Briefcase, User, ChevronDown, FileText,
+  ListChecks, Link, ExternalLink, Plus,
 } from 'lucide-react'
 import { useWorkLog, getActiveMs, formatDuration } from '@/hooks/useWorkLog'
 import { useTaskList } from '@/hooks/useTaskList'
@@ -32,7 +33,7 @@ function formatDateGroup(iso: string): string {
   yesterday.setDate(today.getDate() - 1)
   if (sameDay(d, today)) return 'Today'
   if (sameDay(d, yesterday)) return 'Yesterday'
-  return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+  return d.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })
 }
 
 function groupByDate(entries: WorkEntry[]): [string, WorkEntry[]][] {
@@ -53,6 +54,18 @@ function entryActiveMs(e: WorkEntry): number {
   return Math.max(0, new Date(e.endedAt).getTime() - new Date(e.startedAt).getTime() - e.totalPausedMs)
 }
 
+function tagDot(tag: WorkTag) {
+  return tag === 'work'
+    ? 'bg-blue-500'
+    : 'bg-purple-500'
+}
+
+function tagAccent(tag: WorkTag) {
+  return tag === 'work'
+    ? 'border-l-blue-500'
+    : 'border-l-purple-500'
+}
+
 function tagStyle(tag: WorkTag) {
   return tag === 'work'
     ? 'bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300'
@@ -68,6 +81,10 @@ function TagBadge({ tag }: { tag: WorkTag }) {
   )
 }
 
+function hostname(url: string) {
+  try { return new URL(url).hostname.replace(/^www\./, '') } catch { return url }
+}
+
 // ── Day totals ─────────────────────────────────────────────────────────────────
 
 function DaySummary({ entries }: { entries: WorkEntry[] }) {
@@ -75,18 +92,20 @@ function DaySummary({ entries }: { entries: WorkEntry[] }) {
   const personalMs = entries.filter((e) => e.tag === 'personal').reduce((s, e) => s + entryActiveMs(e), 0)
   if (workMs === 0 && personalMs === 0) return null
   return (
-    <div className="flex items-center gap-3 mt-0.5 mb-1">
+    <span className="flex items-center gap-2 ml-auto">
       {workMs > 0 && (
-        <span className="flex items-center gap-1 text-xs text-blue-600 dark:text-blue-400 font-medium">
-          <Briefcase className="w-3 h-3" />{formatDuration(workMs)}
+        <span className="flex items-center gap-1 text-xs text-blue-500 dark:text-blue-400 font-medium tabular-nums">
+          <span className="w-1.5 h-1.5 rounded-full bg-blue-500 shrink-0" />
+          {formatDuration(workMs)}
         </span>
       )}
       {personalMs > 0 && (
-        <span className="flex items-center gap-1 text-xs text-purple-600 dark:text-purple-400 font-medium">
-          <User className="w-3 h-3" />{formatDuration(personalMs)}
+        <span className="flex items-center gap-1 text-xs text-purple-500 dark:text-purple-400 font-medium tabular-nums">
+          <span className="w-1.5 h-1.5 rounded-full bg-purple-500 shrink-0" />
+          {formatDuration(personalMs)}
         </span>
       )}
-    </div>
+    </span>
   )
 }
 
@@ -103,7 +122,7 @@ function LiveTimer({ entry }: { entry: WorkEntry }) {
     return () => clearInterval(id)
   }, [entry.status, entry.id])
   return (
-    <span className="font-mono text-4xl font-semibold tabular-nums tracking-tight">
+    <span className="font-mono text-[2.75rem] font-semibold tabular-nums tracking-tight leading-none">
       {formatDuration(ms)}
     </span>
   )
@@ -116,41 +135,56 @@ function ActiveCard({ entry, onPause, onResume, onStop, onNotes }: {
 }) {
   const isPaused = entry.status === 'paused'
   return (
-    <div className="mx-4 mb-4 rounded-2xl border border-border bg-card p-4 space-y-3">
+    <div className={cn(
+      'mx-4 mb-4 rounded-2xl border border-border bg-card p-4 space-y-4',
+      'border-l-[3px]',
+      tagAccent(entry.tag),
+    )}>
+      {/* Title row */}
       <div className="flex items-start justify-between gap-2">
         <div className="space-y-1.5 flex-1 min-w-0">
-          <p className="text-sm font-semibold leading-snug text-foreground truncate">{entry.title}</p>
           <div className="flex items-center gap-2">
+            {/* Live dot */}
+            <span className={cn(
+              'w-2 h-2 rounded-full shrink-0',
+              isPaused ? 'bg-muted-foreground' : 'bg-emerald-500 animate-pulse',
+            )} />
+            <p className="text-sm font-semibold leading-snug text-foreground truncate">{entry.title}</p>
+          </div>
+          <div className="flex items-center gap-2 pl-4">
             <TagBadge tag={entry.tag} />
-            <span className="text-xs text-muted-foreground">started {formatTime(entry.startedAt)}</span>
+            <span className="text-xs text-muted-foreground">
+              {isPaused ? 'paused' : `since ${formatTime(entry.startedAt)}`}
+            </span>
           </div>
         </div>
-        <div className="flex items-center gap-1 shrink-0">
-          {isPaused && (
-            <span className="text-xs text-muted-foreground bg-muted px-2 py-0.5 rounded-full">paused</span>
-          )}
-          <button
-            onClick={onNotes}
-            className={cn('p-1.5 rounded-md transition-colors', entry.notes ? 'text-primary hover:bg-primary/10' : 'text-muted-foreground hover:bg-muted')}
-            title="Notes"
-          >
-            <FileText className="w-3.5 h-3.5" />
-          </button>
-        </div>
+        <button
+          onClick={onNotes}
+          className={cn('p-1.5 rounded-md transition-colors shrink-0', entry.notes ? 'text-primary hover:bg-primary/10' : 'text-muted-foreground hover:bg-muted')}
+          title="Notes"
+        >
+          <FileText className="w-3.5 h-3.5" />
+        </button>
       </div>
-      <LiveTimer entry={entry} />
-      <div className="flex items-center gap-2 pt-1">
+
+      {/* Timer */}
+      <div className="pl-4">
+        <LiveTimer entry={entry} />
+      </div>
+
+      {/* Controls */}
+      <div className="flex items-center gap-2">
         <button
           onClick={isPaused ? onResume : onPause}
-          className="flex-1 flex items-center justify-center gap-2 py-2 rounded-lg bg-muted hover:bg-muted/80 text-sm font-medium transition-colors"
+          className="flex-1 flex items-center justify-center gap-2 py-2 rounded-xl bg-muted hover:bg-muted/70 text-sm font-medium transition-colors"
         >
-          {isPaused ? <><Play className="w-4 h-4" /> Resume</> : <><Pause className="w-4 h-4" /> Pause</>}
+          {isPaused ? <><Play className="w-3.5 h-3.5" /> Resume</> : <><Pause className="w-3.5 h-3.5" /> Pause</>}
         </button>
         <button
           onClick={onStop}
-          className="flex-1 flex items-center justify-center gap-2 py-2 rounded-lg bg-destructive/10 hover:bg-destructive/20 text-destructive text-sm font-medium transition-colors"
+          className="flex-1 flex items-center justify-center gap-2 py-2 rounded-xl bg-destructive/10 hover:bg-destructive/20 text-destructive text-sm font-medium transition-colors"
         >
-          <Square className="w-4 h-4" /> Stop
+          <Square className="w-3.5 h-3.5" /> Stop
         </button>
       </div>
     </div>
@@ -175,24 +209,24 @@ function NewEntryForm({ onStart }: { onStart: (title: string, tag: WorkTag) => v
   }
 
   return (
-    <form onSubmit={handleSubmit} className="mx-4 mb-4 space-y-2">
+    <form onSubmit={handleSubmit} className="mx-4 mb-5 space-y-2">
       <input
         ref={inputRef}
         type="text"
         placeholder="What are you working on?"
         value={title}
         onChange={(e) => setTitle(e.target.value)}
-        className="w-full px-3 py-2.5 rounded-lg bg-muted border-0 outline-none text-sm placeholder:text-muted-foreground"
+        className="w-full px-3 py-2.5 rounded-xl bg-muted border-0 outline-none text-sm placeholder:text-muted-foreground"
       />
       <div className="flex items-center gap-2">
-        <div className="flex gap-1 p-1 bg-muted rounded-lg flex-1">
+        <div className="flex gap-1 p-1 bg-muted rounded-xl flex-1">
           {(['work', 'personal'] as WorkTag[]).map((t) => (
             <button
               key={t}
               type="button"
               onClick={() => setTag(t)}
               className={cn(
-                'flex-1 flex items-center justify-center gap-1.5 py-1 px-2 rounded-md text-xs font-medium transition-colors',
+                'flex-1 flex items-center justify-center gap-1.5 py-1 px-2 rounded-lg text-xs font-medium transition-colors',
                 tag === t ? 'bg-background shadow-sm text-foreground' : 'text-muted-foreground hover:text-foreground',
               )}
             >
@@ -204,7 +238,7 @@ function NewEntryForm({ onStart }: { onStart: (title: string, tag: WorkTag) => v
         <button
           type="submit"
           disabled={!title.trim()}
-          className="flex items-center gap-1.5 px-4 py-2 rounded-lg bg-primary text-primary-foreground text-sm font-medium disabled:opacity-40 transition-opacity"
+          className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-primary text-primary-foreground text-sm font-medium disabled:opacity-40 transition-opacity"
         >
           <Play className="w-3.5 h-3.5" /> Start
         </button>
@@ -215,46 +249,32 @@ function NewEntryForm({ onStart }: { onStart: (title: string, tag: WorkTag) => v
 
 // ── Day group (collapsible) ────────────────────────────────────────────────────
 
-function DayGroup({
-  date,
-  entries,
-  defaultOpen,
-  onRemove,
-  onNotes,
-}: {
-  date: string
-  entries: WorkEntry[]
-  defaultOpen: boolean
-  onRemove: (id: string) => void
-  onNotes: (id: string) => void
+function DayGroup({ date, entries, defaultOpen, onRemove, onNotes }: {
+  date: string; entries: WorkEntry[]; defaultOpen: boolean
+  onRemove: (id: string) => void; onNotes: (id: string) => void
 }) {
   const [open, setOpen] = useState(defaultOpen)
-
   const totalMs = entries.reduce((sum, e) => sum + entryActiveMs(e), 0)
 
   return (
     <div>
       <button
         onClick={() => setOpen((v) => !v)}
-        className="w-full flex items-center gap-1.5 py-0.5 text-left"
+        className="w-full flex items-center gap-1.5 py-1 text-left group"
       >
-        <ChevronRight
-          className={cn(
-            'w-3 h-3 text-muted-foreground transition-transform duration-200 shrink-0',
-            open && 'rotate-90',
-          )}
-        />
-        <span className="text-xs font-medium text-muted-foreground flex-1">{date}</span>
-        {!open && totalMs > 0 && (
-          <span className="text-xs font-mono text-muted-foreground pr-0.5">
-            {formatDuration(totalMs)}
-          </span>
-        )}
+        <ChevronDown className={cn(
+          'w-3.5 h-3.5 text-muted-foreground/60 transition-transform duration-200 shrink-0',
+          !open && '-rotate-90',
+        )} />
+        <span className="text-xs font-semibold text-muted-foreground flex-1">{date}</span>
+        {!open
+          ? totalMs > 0 && <span className="text-xs font-mono text-muted-foreground/80 tabular-nums">{formatDuration(totalMs)}</span>
+          : <DaySummary entries={entries} />
+        }
       </button>
-      {open && <DaySummary entries={entries} />}
 
       {open && (
-        <div className="divide-y divide-border mt-1">
+        <div className="mt-1 space-y-0.5">
           {entries.map((entry) => (
             <HistoryEntry
               key={entry.id}
@@ -276,29 +296,31 @@ function HistoryEntry({ entry, onRemove, onNotes }: {
 }) {
   const doneMs = entryActiveMs(entry)
   return (
-    <div className="flex items-start gap-2 py-2 group">
-      <div className="flex-1 min-w-0 space-y-0.5">
-        <p className="text-sm font-medium text-foreground leading-snug truncate">{entry.title}</p>
-        <div className="flex items-center gap-2 flex-wrap">
-          <TagBadge tag={entry.tag} />
-          <span className="text-xs text-muted-foreground">
-            {formatTime(entry.startedAt)}{entry.endedAt && ` – ${formatTime(entry.endedAt)}`}
-          </span>
-          <span className="text-xs text-muted-foreground font-mono">{formatDuration(doneMs)}</span>
-        </div>
+    <div className="flex items-center gap-2.5 px-2 py-2 rounded-lg hover:bg-muted/50 group transition-colors">
+      {/* Tag dot */}
+      <span className={cn('w-2 h-2 rounded-full shrink-0', tagDot(entry.tag))} />
+
+      {/* Content */}
+      <div className="flex-1 min-w-0">
+        <p className="text-sm text-foreground leading-snug truncate">{entry.title}</p>
+        <p className="text-xs text-muted-foreground tabular-nums">
+          {formatTime(entry.startedAt)}{entry.endedAt && ` – ${formatTime(entry.endedAt)}`}
+        </p>
       </div>
-      <div className="flex items-center gap-0.5 shrink-0 mt-0.5">
+
+      {/* Duration */}
+      <span className="text-xs font-mono text-muted-foreground tabular-nums shrink-0">{formatDuration(doneMs)}</span>
+
+      {/* Actions */}
+      <div className="flex items-center gap-0.5 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">
         <button
           onClick={onNotes}
-          className={cn('p-1 transition-colors', entry.notes ? 'text-primary opacity-100' : 'text-muted-foreground opacity-0 group-hover:opacity-100')}
+          className={cn('p-1 rounded transition-colors', entry.notes ? 'text-primary !opacity-100' : 'text-muted-foreground hover:text-foreground')}
           title="Notes"
         >
           <FileText className="w-3.5 h-3.5" />
         </button>
-        <button
-          onClick={onRemove}
-          className="p-1 opacity-0 group-hover:opacity-100 text-muted-foreground hover:text-destructive transition-all"
-        >
+        <button onClick={onRemove} className="p-1 rounded text-muted-foreground hover:text-destructive transition-colors">
           <Trash2 className="w-3.5 h-3.5" />
         </button>
       </div>
@@ -325,24 +347,24 @@ function AddTaskForm({ onAdd }: { onAdd: (title: string, tag: WorkTag, url?: str
   }
 
   return (
-    <form onSubmit={handleSubmit} className="mx-4 mb-4 space-y-2">
+    <form onSubmit={handleSubmit} className="mx-4 mb-5 space-y-2">
       <input
         type="text"
         placeholder="Add a task…"
         value={title}
         onChange={(e) => setTitle(e.target.value)}
-        className="w-full px-3 py-2.5 rounded-lg bg-muted border-0 outline-none text-sm placeholder:text-muted-foreground"
+        className="w-full px-3 py-2.5 rounded-xl bg-muted border-0 outline-none text-sm placeholder:text-muted-foreground"
+        autoFocus
       />
       <div className="flex items-center gap-1.5">
-        {/* Tag toggle */}
-        <div className="flex gap-1 p-1 bg-muted rounded-lg flex-1">
+        <div className="flex gap-1 p-1 bg-muted rounded-xl flex-1">
           {(['work', 'personal'] as WorkTag[]).map((t) => (
             <button
               key={t}
               type="button"
               onClick={() => setTag(t)}
               className={cn(
-                'flex-1 flex items-center justify-center gap-1.5 py-1 px-2 rounded-md text-xs font-medium transition-colors',
+                'flex-1 flex items-center justify-center gap-1.5 py-1 px-2 rounded-lg text-xs font-medium transition-colors',
                 tag === t ? 'bg-background shadow-sm text-foreground' : 'text-muted-foreground hover:text-foreground',
               )}
             >
@@ -355,7 +377,7 @@ function AddTaskForm({ onAdd }: { onAdd: (title: string, tag: WorkTag, url?: str
           type="button"
           onClick={() => setShowUrl((v) => !v)}
           className={cn(
-            'p-2.5 rounded-lg transition-colors shrink-0',
+            'p-2.5 rounded-xl transition-colors shrink-0',
             showUrl ? 'bg-blue-100 text-blue-600 dark:bg-blue-900/40 dark:text-blue-400' : 'bg-muted text-muted-foreground hover:text-foreground',
           )}
           title="Add source link"
@@ -365,7 +387,7 @@ function AddTaskForm({ onAdd }: { onAdd: (title: string, tag: WorkTag, url?: str
         <button
           type="submit"
           disabled={!title.trim()}
-          className="p-2.5 rounded-lg bg-primary text-primary-foreground disabled:opacity-40 transition-opacity shrink-0"
+          className="p-2.5 rounded-xl bg-primary text-primary-foreground disabled:opacity-40 transition-opacity shrink-0"
           title="Add task"
         >
           <Plus className="w-4 h-4" />
@@ -377,7 +399,7 @@ function AddTaskForm({ onAdd }: { onAdd: (title: string, tag: WorkTag, url?: str
           placeholder="https://… (optional source link)"
           value={url}
           onChange={(e) => setUrl(e.target.value)}
-          className="w-full px-3 py-2 rounded-lg bg-muted border-0 outline-none text-sm placeholder:text-muted-foreground"
+          className="w-full px-3 py-2 rounded-xl bg-muted border-0 outline-none text-sm placeholder:text-muted-foreground"
           autoFocus
         />
       )}
@@ -391,43 +413,42 @@ function TaskRow({ task, onRemove, onStart }: {
   const hasUrl = !!task.url
   return (
     <div className={cn(
-      'flex items-center gap-2 px-3 py-2.5 rounded-xl group transition-colors',
+      'flex items-center gap-2.5 px-3 py-2.5 rounded-xl group transition-colors',
       hasUrl
-        ? 'bg-blue-50/60 dark:bg-blue-950/20 hover:bg-blue-50 dark:hover:bg-blue-950/30'
+        ? 'bg-blue-50/50 dark:bg-blue-950/20 hover:bg-blue-50 dark:hover:bg-blue-950/30'
         : 'hover:bg-muted/60',
     )}>
+      {/* Tag dot */}
+      <span className={cn('w-2 h-2 rounded-full shrink-0 mt-0.5', tagDot(task.tag ?? 'work'))} />
+
+      {/* Content */}
       <div className="flex-1 min-w-0">
-        <div className="flex items-center gap-1.5 mb-0.5">
-          <p className={cn('text-sm font-medium leading-snug truncate', hasUrl ? 'text-blue-900 dark:text-blue-100' : 'text-foreground')}>
-            {task.title}
-          </p>
-          <TagBadge tag={task.tag ?? 'work'} />
-        </div>
+        <p className={cn('text-sm font-medium leading-snug truncate', hasUrl ? 'text-blue-900 dark:text-blue-100' : 'text-foreground')}>
+          {task.title}
+        </p>
         {hasUrl && (
           <a
             href={task.url}
             target="_blank"
             rel="noopener noreferrer"
             onClick={(e) => e.stopPropagation()}
-            className="inline-flex items-center gap-1 text-xs text-blue-500 dark:text-blue-400 hover:underline truncate max-w-full"
+            className="inline-flex items-center gap-1 text-xs text-blue-500 dark:text-blue-400 hover:underline"
           >
             <ExternalLink className="w-3 h-3 shrink-0" />
-            <span className="truncate">{task.url}</span>
+            {hostname(task.url!)}
           </a>
         )}
       </div>
-      <div className="flex items-center gap-0.5 shrink-0">
+
+      {/* Actions — visible on hover */}
+      <div className="flex items-center gap-1 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">
         <button
           onClick={onStart}
-          className="flex items-center gap-1 px-2 py-1 rounded-lg text-xs font-medium opacity-0 group-hover:opacity-100 bg-primary/10 text-primary hover:bg-primary/20 transition-all"
-          title="Start timer for this task"
+          className="flex items-center gap-1 px-2 py-1 rounded-lg text-xs font-medium bg-primary/10 text-primary hover:bg-primary/20 transition-colors"
         >
           <Play className="w-3 h-3" /> Start
         </button>
-        <button
-          onClick={onRemove}
-          className="p-1 opacity-0 group-hover:opacity-100 text-muted-foreground hover:text-destructive transition-all ml-0.5"
-        >
+        <button onClick={onRemove} className="p-1 rounded text-muted-foreground hover:text-destructive transition-colors">
           <Trash2 className="w-3.5 h-3.5" />
         </button>
       </div>
@@ -483,9 +504,9 @@ export function WorkLogPanel({ open, onClose }: { open: boolean; onClose: () => 
         open ? 'translate-x-0' : 'translate-x-full',
       )}>
         {/* Header */}
-        <div className="flex items-center gap-2 px-4 py-3.5 border-b border-border shrink-0">
-          {/* Tab buttons */}
-          <div className="flex items-center gap-0.5 flex-1">
+        <div className="flex items-center px-4 py-3 border-b border-border shrink-0 gap-2">
+          {/* Tabs — note the gap-6 for visual breathing room */}
+          <div className="flex items-center gap-1 flex-1">
             <button
               onClick={() => setTab('log')}
               className={cn(
@@ -495,6 +516,10 @@ export function WorkLogPanel({ open, onClose }: { open: boolean; onClose: () => 
             >
               <Clock className="w-3.5 h-3.5" /> Log
             </button>
+
+            {/* Deliberate gap between the two tabs */}
+            <div className="w-3" />
+
             <button
               onClick={() => setTab('tasks')}
               className={cn(
@@ -511,13 +536,9 @@ export function WorkLogPanel({ open, onClose }: { open: boolean; onClose: () => 
               )}
             </button>
           </div>
-          <kbd className="text-xs text-muted-foreground bg-muted px-1.5 py-0.5 rounded font-mono">
-            Ctrl+I
-          </kbd>
-          <button
-            onClick={onClose}
-            className="p-1 rounded-md hover:bg-muted text-muted-foreground hover:text-foreground transition-colors"
-          >
+
+          <kbd className="text-xs text-muted-foreground bg-muted px-1.5 py-0.5 rounded font-mono">Ctrl+I</kbd>
+          <button onClick={onClose} className="p-1 rounded-md hover:bg-muted text-muted-foreground hover:text-foreground transition-colors">
             <X className="w-4 h-4" />
           </button>
         </div>
@@ -537,7 +558,7 @@ export function WorkLogPanel({ open, onClose }: { open: boolean; onClose: () => 
               </div>
             )}
 
-            <div className="mx-4 mb-4 h-px bg-border" />
+            <div className="mx-4 mb-5 h-px bg-border" />
 
             <NewEntryForm onStart={start} />
 
@@ -547,10 +568,10 @@ export function WorkLogPanel({ open, onClose }: { open: boolean; onClose: () => 
 
             {!loading && groups.length > 0 && (
               <div className="px-4 pb-8">
-                <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-3">
+                <p className="text-[11px] font-semibold text-muted-foreground uppercase tracking-widest mb-3">
                   History
                 </p>
-                <div className="space-y-4">
+                <div className="space-y-3">
                   {groups.map(([date, dateEntries]) => (
                     <DayGroup
                       key={date}
@@ -575,7 +596,11 @@ export function WorkLogPanel({ open, onClose }: { open: boolean; onClose: () => 
             </div>
 
             {tasks.length === 0 ? (
-              <p className="px-4 text-xs text-muted-foreground">No tasks yet. Add one above.</p>
+              <div className="px-4 py-8 flex flex-col items-center gap-2 text-center">
+                <ListChecks className="w-8 h-8 text-muted-foreground/30" />
+                <p className="text-sm text-muted-foreground">No tasks yet</p>
+                <p className="text-xs text-muted-foreground/60">Add tasks above to track your backlog</p>
+              </div>
             ) : (
               <div className="px-4 pb-8 space-y-1">
                 {tasks.map((task) => (
