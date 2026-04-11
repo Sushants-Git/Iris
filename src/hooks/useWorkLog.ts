@@ -161,22 +161,20 @@ export function useWorkLog() {
   }, [])
 
   const stop = useCallback((id: string) => {
-    setActiveEntry((prev) => {
-      if (!prev || prev.id !== id) return prev
-      const done = terminate(prev)
-      saveActive(null)
-      setDoneEntries((d) => [done, ...d])
-      // Save to DB — fire and forget
-      workLogApi.save({
-        id: done.id,
-        title: done.title,
-        tag: done.tag,
-        startedAt: done.startedAt,
-        endedAt: done.endedAt,
-        totalPausedMs: done.totalPausedMs,
-      }).catch(() => {})
-      return null
-    })
+    const prev = loadActive()
+    if (!prev || prev.id !== id) return
+    const done = terminate(prev)
+    saveActive(null)
+    setActiveEntry(null)
+    setDoneEntries((d) => [done, ...d])
+    workLogApi.save({
+      id: done.id,
+      title: done.title,
+      tag: done.tag,
+      startedAt: done.startedAt,
+      endedAt: done.endedAt,
+      totalPausedMs: done.totalPausedMs,
+    }).catch(() => {})
   }, [])
 
   const remove = useCallback((id: string) => {
