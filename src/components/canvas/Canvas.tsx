@@ -48,7 +48,6 @@ export function Canvas({
   const [highlightId, setHighlightId] = useState<string | null>(null)
   const [topIds, setTopIds] = useState<string[]>([])
   const [minimapPinned, setMinimapPinned] = useState(false)
-  const minimapTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const helpRef = useRef<HTMLDivElement>(null)
 
   // Close help when clicking outside
