@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useRef, useState, useCallback, memo } from 'react'
 import { Plus, Minus, Info } from 'lucide-react'
 import { useCanvas } from '@/hooks/useCanvas'
 import { CanvasCard } from './CanvasCard'
@@ -13,8 +13,73 @@ import { screenToCanvas, isImageUrl } from '@/lib/utils'
 import { previewApi } from '@/lib/api-client'
 import type { Item } from '@/types'
 import type { CreateItemPayload, UpdateItemPayload } from '@/lib/api-client'
+import type { CanvasTransform } from '@/hooks/useCanvas'
+import type { RefObject } from 'react'
 
 const YOUTUBE_SIZE = { width: 220, height: 276 }
+
+// ── CardEntry: memoized wrapper so CanvasCard never re-renders during drag ───
+interface CardEntryProps {
+  item: Item
+  transformRef: RefObject<CanvasTransform>
+  highlighted: boolean
+  selected: boolean
+  onUpdateItem: (id: string, payload: UpdateItemPayload) => void
+  onDeleteItem: (id: string) => void
+  onSetEditItem: (item: Item) => void
+  onSetTopIds: React.Dispatch<React.SetStateAction<string[]>>
+  onPointerDown: (e: React.PointerEvent, id: string) => void
+  onPointerUp: (e: React.PointerEvent, id: string, shiftKey: boolean) => void
+}
+
+const CardEntry = memo(function CardEntry({
+  item,
+  transformRef,
+  highlighted,
+  selected,
+  onUpdateItem,
+  onDeleteItem,
+  onSetEditItem,
+  onSetTopIds,
+  onPointerDown,
+  onPointerUp,
+}: CardEntryProps) {
+  const onUpdate = useCallback((payload: UpdateItemPayload) => onUpdateItem(item.id, payload), [item.id, onUpdateItem])
+  const onDelete = useCallback(() => onDeleteItem(item.id), [item.id, onDeleteItem])
+  const onEdit   = useCallback(() => onSetEditItem(item),  [item, onSetEditItem])
+  const onBringToFront = useCallback(
+    () => onSetTopIds((prev) => [...prev.filter((id) => id !== item.id), item.id]),
+    [item.id, onSetTopIds],
+  )
+  const onChange = useCallback(
+    (noteContent: string) => onUpdateItem(item.id, { noteContent }),
+    [item.id, onUpdateItem],
+  )
+  return (
+    <div
+      data-card="true"
+      onPointerDown={(e) => onPointerDown(e, item.id)}
+      onPointerUp={(e) => onPointerUp(e, item.id, e.shiftKey)}
+    >
+      <CanvasCard
+        item={item}
+        transformRef={transformRef}
+        highlighted={highlighted}
+        selected={selected}
+        onUpdate={onUpdate}
+        onDelete={onDelete}
+        onEdit={onEdit}
+        onBringToFront={onBringToFront}
+      >
+        {item.type === 'link' ? (
+          <LinkCard item={item} />
+        ) : (
+          <NoteCard item={item} onChange={onChange} />
+        )}
+      </CanvasCard>
+    </div>
+  )
+})
 
 function isYouTubeUrl(url: string) {
   return url.includes('youtube.com') || url.includes('youtu.be')
@@ -83,6 +148,38 @@ export function Canvas({
 
   // ── Card click detection (distinguish click vs drag) ────────────────────────
   const cardClickRef = useRef<{ id: string; x: number; y: number } | null>(null)
+
+  // ── Stable callbacks — survive Canvas re-renders without breaking CardEntry.memo ──
+  const onUpdateItemRef = useRef(onUpdateItem)
+  onUpdateItemRef.current = onUpdateItem
+  const onDeleteItemRef = useRef(onDeleteItem)
+  onDeleteItemRef.current = onDeleteItem
+
+  const stableUpdateItem  = useCallback((id: string, payload: UpdateItemPayload) => onUpdateItemRef.current(id, payload), [])
+  const stableDeleteItem  = useCallback((id: string) => onDeleteItemRef.current(id), [])
+  const stableSetEditItem = useCallback((item: Item) => setEditItem(item), [setEditItem])
+
+  const stableCardPointerDown = useCallback((e: React.PointerEvent, id: string) => {
+    cardClickRef.current = { id, x: e.clientX, y: e.clientY }
+  }, [])
+
+  const stableCardPointerUp = useCallback((e: React.PointerEvent, id: string, shiftKey: boolean) => {
+    const start = cardClickRef.current
+    if (!start || start.id !== id) return
+    const moved = Math.hypot(e.clientX - start.x, e.clientY - start.y)
+    cardClickRef.current = null
+    if (moved > 5) return
+    if (shiftKey) {
+      setSelectedIds((prev) => {
+        const next = new Set(prev)
+        if (next.has(id)) next.delete(id)
+        else next.add(id)
+        return next
+      })
+    } else {
+      setSelectedIds(new Set([id]))
+    }
+  }, [setSelectedIds])
 
   // ── Wheel zoom + trackpad pan ───────────────────────────────────────────────
   useEffect(() => {
@@ -276,28 +373,6 @@ export function Canvas({
     }
   }
 
-  function handleCardPointerDown(e: React.PointerEvent, id: string) {
-    cardClickRef.current = { id, x: e.clientX, y: e.clientY }
-  }
-
-  function handleCardPointerUp(e: React.PointerEvent, id: string, shiftKey: boolean) {
-    const start = cardClickRef.current
-    if (!start || start.id !== id) return
-    const moved = Math.hypot(e.clientX - start.x, e.clientY - start.y)
-    cardClickRef.current = null
-    if (moved > 5) return // was a drag, not a click
-    if (shiftKey) {
-      setSelectedIds((prev) => {
-        const next = new Set(prev)
-        if (next.has(id)) next.delete(id)
-        else next.add(id)
-        return next
-      })
-    } else {
-      setSelectedIds(new Set([id]))
-    }
-  }
-
   function getNewCardPos() {
     const el = containerRef.current
     if (!el) return { x: 100, y: 100 }
@@ -335,32 +410,19 @@ export function Canvas({
           if (bi === -1) return 1
           return ai - bi
         }).map((item) => (
-          <div
+          <CardEntry
             key={item.id}
-            data-card="true"
-            onPointerDown={(e) => handleCardPointerDown(e, item.id)}
-            onPointerUp={(e) => handleCardPointerUp(e, item.id, e.shiftKey)}
-          >
-            <CanvasCard
-              item={item}
-              transformRef={transformRef}
-              highlighted={item.id === highlightId}
-              selected={selectedIds.has(item.id)}
-              onUpdate={(payload) => onUpdateItem(item.id, payload)}
-              onDelete={() => onDeleteItem(item.id)}
-              onEdit={() => setEditItem(item)}
-              onBringToFront={() => setTopIds((prev) => [...prev.filter((id) => id !== item.id), item.id])}
-            >
-              {item.type === 'link' ? (
-                <LinkCard item={item} />
-              ) : (
-                <NoteCard
-                  item={item}
-                  onChange={(noteContent) => onUpdateItem(item.id, { noteContent })}
-                />
-              )}
-            </CanvasCard>
-          </div>
+            item={item}
+            transformRef={transformRef}
+            highlighted={item.id === highlightId}
+            selected={selectedIds.has(item.id)}
+            onUpdateItem={stableUpdateItem}
+            onDeleteItem={stableDeleteItem}
+            onSetEditItem={stableSetEditItem}
+            onSetTopIds={setTopIds}
+            onPointerDown={stableCardPointerDown}
+            onPointerUp={stableCardPointerUp}
+          />
         ))}
       </div>
 

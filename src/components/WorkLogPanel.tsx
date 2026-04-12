@@ -453,7 +453,7 @@ export function WorkLogPanel({ open, onClose }: { open: boolean; onClose: () => 
           <div className="flex items-center gap-1 flex-1">
             {TAB_BTN('log', <Clock className="w-3.5 h-3.5" />, 'Log')}
             {TAB_BTN('tasks', <ListChecks className="w-3.5 h-3.5" />, 'Tasks', tasks.length)}
-            {TAB_BTN('notes', <StickyNote className="w-3.5 h-3.5" />, 'Notes', allNotesCount)}
+            {TAB_BTN('notes', <StickyNote className="w-3.5 h-3.5" />, 'Notes')}
           </div>
           <Button variant="ghost" size="icon-sm" onClick={onClose}>
             <X className="w-4 h-4" />
