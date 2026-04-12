@@ -301,6 +301,58 @@ app.delete('/tasks/:id', async (c) => {
   return c.json({ ok: true })
 })
 
+// ─── STANDALONE NOTES ─────────────────────────────────────────────────────────
+
+app.get('/notes', async (c) => {
+  const db = getDb()
+  const rows = await db.select().from(schema.standaloneNotes).orderBy(desc(schema.standaloneNotes.updatedAt))
+  return c.json(rows)
+})
+
+app.post(
+  '/notes',
+  zValidator('json', z.object({
+    id: z.string().min(1),
+    title: z.string().default(''),
+    content: z.string().default(''),
+    taskId: z.string().nullable().optional(),
+  })),
+  async (c) => {
+    const db = getDb()
+    const body = c.req.valid('json')
+    await db.insert(schema.standaloneNotes).values({
+      id: body.id,
+      title: body.title,
+      content: body.content,
+      taskId: body.taskId ?? null,
+    }).onConflictDoNothing()
+    return c.json({ ok: true }, 201)
+  },
+)
+
+app.patch(
+  '/notes/:id',
+  zValidator('json', z.object({
+    title: z.string().optional(),
+    content: z.string().optional(),
+    taskId: z.string().nullable().optional(),
+  })),
+  async (c) => {
+    const db = getDb()
+    const body = c.req.valid('json')
+    await db.update(schema.standaloneNotes)
+      .set({ ...body, updatedAt: new Date() })
+      .where(eq(schema.standaloneNotes.id, c.req.param('id')))
+    return c.json({ ok: true })
+  },
+)
+
+app.delete('/notes/:id', async (c) => {
+  const db = getDb()
+  await db.delete(schema.standaloneNotes).where(eq(schema.standaloneNotes.id, c.req.param('id')))
+  return c.json({ ok: true })
+})
+
 // ─── PREVIEW ──────────────────────────────────────────────────────────────────
 
 const YOUTUBE_PATTERNS = [

@@ -24,7 +24,7 @@ export function NoteCard({ item, onChange }: Props) {
       onBlur={handleBlur}
       onPointerDown={(e) => e.stopPropagation()}
       placeholder="Write a note…"
-      className="w-full h-full resize-none border-none outline-none bg-transparent p-3 text-sm text-card-foreground placeholder:text-muted-foreground leading-relaxed"
+      className="w-full h-full resize-none border-none outline-none bg-transparent px-4 py-3 text-sm text-card-foreground placeholder:text-muted-foreground/50 leading-relaxed"
       style={{ fontFamily: 'inherit' }}
     />
   )

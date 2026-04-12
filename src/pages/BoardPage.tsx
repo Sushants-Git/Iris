@@ -1,4 +1,5 @@
 import { useParams, Navigate } from 'react-router-dom'
+import { useState, useEffect } from 'react'
 import { useMediaQuery } from '@/hooks/useMediaQuery'
 import { useItems, useCreateItem, useUpdateItem, useDeleteItem } from '@/hooks/useItems'
 import { useBoards } from '@/hooks/useBoards'
@@ -6,12 +7,34 @@ import { useHistory } from '@/hooks/useHistory'
 import { Canvas } from '@/components/canvas/Canvas'
 import { ListView } from '@/components/mobile/ListView'
 
+type ViewMode = 'canvas' | 'list'
+
+function getStoredViewMode(): ViewMode {
+  return (localStorage.getItem('iris_view_mode') as ViewMode) ?? 'canvas'
+}
+
 export function BoardPage() {
   const { boardId } = useParams<{ boardId: string }>()
   const isMobile = useMediaQuery('(max-width: 768px)')
+  const [viewMode, setViewMode] = useState<ViewMode>(getStoredViewMode)
 
   if (boardId) localStorage.setItem('iris_last_board', boardId)
   const { data: boards, isLoading: boardsLoading } = useBoards()
+
+  useEffect(() => {
+    function onKey(e: KeyboardEvent) {
+      if ((e.metaKey || e.ctrlKey) && e.key === '\\') {
+        e.preventDefault()
+        setViewMode((m) => {
+          const next = m === 'canvas' ? 'list' : 'canvas'
+          localStorage.setItem('iris_view_mode', next)
+          return next
+        })
+      }
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [])
 
   // All hooks must be called unconditionally before any early returns
   const { data: items = [], isLoading } = useItems(boardId)
@@ -34,7 +57,7 @@ export function BoardPage() {
     return <Navigate to="/" replace />
   }
 
-  if (isMobile) {
+  if (isMobile || viewMode === 'list') {
     return (
       <ListView
         items={items}

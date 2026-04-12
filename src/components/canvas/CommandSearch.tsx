@@ -3,6 +3,7 @@ import { Search } from 'lucide-react'
 import { getTitle } from '@/types'
 import type { Item } from '@/types'
 import { isImageUrl } from '@/lib/utils'
+import { Input } from '@/components/ui/input'
 
 interface Props {
   items: Item[]
@@ -71,17 +72,17 @@ export function CommandSearch({ items, onSelect, onClose }: Props) {
         onPointerDown={(e) => e.stopPropagation()}
       >
         {/* Input */}
-        <div className="flex items-center gap-2 px-4 py-3 border-b border-border">
+        <div className="flex items-center gap-2 px-3 py-2.5 border-b border-border">
           <Search className="w-4 h-4 text-muted-foreground shrink-0" />
-          <input
+          <Input
             ref={inputRef}
             type="text"
             placeholder="Search cards…"
             value={query}
             onChange={(e) => setQuery(e.target.value)}
-            className="flex-1 bg-transparent text-sm outline-none placeholder:text-muted-foreground"
+            className="flex-1 border-0 bg-transparent shadow-none focus-visible:ring-0 px-0 h-auto text-sm"
           />
-          <kbd className="text-xs text-muted-foreground bg-muted px-1.5 py-0.5 rounded border border-border">
+          <kbd className="text-xs text-muted-foreground bg-muted px-1.5 py-0.5 rounded border border-border shrink-0">
             esc
           </kbd>
         </div>

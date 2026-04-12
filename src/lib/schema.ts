@@ -65,6 +65,15 @@ export const tasks = pgTable('tasks', {
   createdAt: timestamp('created_at').notNull().defaultNow(),
 })
 
+export const standaloneNotes = pgTable('standalone_notes', {
+  id: text('id').primaryKey(),
+  title: text('title').notNull().default(''),
+  content: text('content').notNull().default(''),
+  taskId: text('task_id'),   // optional link to tasks.id
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+  updatedAt: timestamp('updated_at').notNull().defaultNow(),
+})
+
 export type Board = typeof boards.$inferSelect
 export type NewBoard = typeof boards.$inferInsert
 export type Item = typeof items.$inferSelect

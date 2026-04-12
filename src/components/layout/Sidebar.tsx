@@ -2,6 +2,7 @@ import { useState, useRef, useEffect } from 'react'
 import { Link, useParams, useNavigate } from 'react-router-dom'
 import { Plus, Trash2, Check, X } from 'lucide-react'
 import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
 import { cn } from '@/lib/utils'
 import { useBoards, useDeleteBoard, useUpdateBoard } from '@/hooks/useBoards'
 import { CreateBoardModal } from '@/components/modals/CreateBoardModal'
@@ -83,13 +84,9 @@ export function Sidebar({ onNavigate, onClose, isOpen = true }: Props) {
       <div className="flex items-center px-4 py-4 border-b border-sidebar-border">
         <span className="font-semibold text-sm flex-1">Iris</span>
         {onClose && (
-          <button
-            onClick={onClose}
-            className="p-1 rounded-md hover:bg-sidebar-accent text-muted-foreground hover:text-foreground transition-colors"
-            aria-label="Close sidebar"
-          >
+          <Button variant="ghost" size="icon-sm" onClick={onClose} aria-label="Close sidebar">
             <X className="w-4 h-4" />
-          </button>
+          </Button>
         )}
       </div>
 
@@ -102,8 +99,8 @@ export function Sidebar({ onNavigate, onClose, isOpen = true }: Props) {
         {boards.map((board, i) => (
           <div key={board.id} className="group relative flex items-center rounded-md">
             {renamingId === board.id ? (
-              <div className="flex-1 flex items-center gap-1 px-2 py-1">
-                <input
+              <div className="flex-1 flex items-center gap-1 px-1 py-0.5">
+                <Input
                   ref={renameInputRef}
                   value={renameValue}
                   onChange={(e) => setRenameValue(e.target.value)}
@@ -111,15 +108,15 @@ export function Sidebar({ onNavigate, onClose, isOpen = true }: Props) {
                     if (e.key === 'Enter') commitRename()
                     if (e.key === 'Escape') setRenamingId(null)
                   }}
-                  className="flex-1 text-sm bg-transparent border-b border-primary outline-none min-w-0"
+                  className="flex-1 h-7 text-sm min-w-0"
                   autoFocus
                 />
-                <button onClick={commitRename} className="p-0.5 text-emerald-600 hover:text-emerald-700">
+                <Button variant="ghost" size="icon-xs" onClick={commitRename} className="text-emerald-500 hover:text-emerald-400 shrink-0">
                   <Check className="w-3 h-3" />
-                </button>
-                <button onClick={() => setRenamingId(null)} className="p-0.5 text-muted-foreground hover:text-foreground">
+                </Button>
+                <Button variant="ghost" size="icon-xs" onClick={() => setRenamingId(null)} className="shrink-0">
                   <X className="w-3 h-3" />
-                </button>
+                </Button>
               </div>
             ) : (
               <>
@@ -138,13 +135,15 @@ export function Sidebar({ onNavigate, onClose, isOpen = true }: Props) {
                 >
                   <span className="truncate">{board.name}</span>
                 </Link>
-                <button
+                <Button
+                  variant="ghost"
+                  size="icon-xs"
                   onClick={() => handleDelete(board.id)}
-                  className="absolute right-1 opacity-0 group-hover:opacity-100 p-1 rounded hover:text-destructive transition-opacity"
+                  className="absolute right-1 opacity-0 group-hover:opacity-100 hover:text-destructive"
                   aria-label="Delete board"
                 >
                   <Trash2 className="w-3 h-3" />
-                </button>
+                </Button>
               </>
             )}
           </div>

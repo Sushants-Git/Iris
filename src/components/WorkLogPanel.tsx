@@ -2,44 +2,38 @@ import { useState, useEffect, useRef } from 'react'
 import {
   X, Play, Pause, Square, Trash2, Clock,
   Briefcase, User, ChevronDown, FileText,
-  ListChecks, Link, ExternalLink, Plus,
+  ListChecks, Link, ExternalLink, Plus, StickyNote,
 } from 'lucide-react'
 import { useWorkLog, getActiveMs, formatDuration } from '@/hooks/useWorkLog'
 import { useTaskList } from '@/hooks/useTaskList'
-import { WorkNoteModal } from './WorkNoteModal'
+import { useStandaloneNotes } from '@/hooks/useStandaloneNotes'
+import { NoteModal } from './NoteModal'
+import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
 import { cn } from '@/lib/utils'
-import type { WorkTag, WorkEntry, Task } from '@/types/worklog'
+import type { WorkTag, WorkEntry, Task, StandaloneNote } from '@/types/worklog'
 
-// ── Helpers ────────────────────────────────────────────────────────────────────
+// ── Helpers ─────────────────────────────────────────────────────────────────
 
 function formatTime(iso: string) {
-  return new Date(iso).toLocaleTimeString('en-US', {
-    hour: 'numeric', minute: '2-digit', hour12: true,
-  })
+  return new Date(iso).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true })
 }
 
 function sameDay(a: Date, b: Date) {
-  return (
-    a.getFullYear() === b.getFullYear() &&
-    a.getMonth() === b.getMonth() &&
-    a.getDate() === b.getDate()
-  )
+  return a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate()
 }
 
 function formatDateGroup(iso: string): string {
   const d = new Date(iso)
   const today = new Date()
-  const yesterday = new Date()
-  yesterday.setDate(today.getDate() - 1)
+  const yesterday = new Date(); yesterday.setDate(today.getDate() - 1)
   if (sameDay(d, today)) return 'Today'
   if (sameDay(d, yesterday)) return 'Yesterday'
   return d.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })
 }
 
 function groupByDate(entries: WorkEntry[]): [string, WorkEntry[]][] {
-  const done = [...entries]
-    .filter((e) => e.status === 'done')
-    .sort((a, b) => new Date(b.startedAt).getTime() - new Date(a.startedAt).getTime())
+  const done = [...entries].filter((e) => e.status === 'done').sort((a, b) => new Date(b.startedAt).getTime() - new Date(a.startedAt).getTime())
   const map = new Map<string, WorkEntry[]>()
   for (const e of done) {
     const key = formatDateGroup(e.startedAt)
@@ -54,27 +48,18 @@ function entryActiveMs(e: WorkEntry): number {
   return Math.max(0, new Date(e.endedAt).getTime() - new Date(e.startedAt).getTime() - e.totalPausedMs)
 }
 
-function tagDot(tag: WorkTag) {
-  return tag === 'work'
-    ? 'bg-blue-500'
-    : 'bg-purple-500'
-}
-
-function tagAccent(tag: WorkTag) {
-  return tag === 'work'
-    ? 'border-l-blue-500'
-    : 'border-l-purple-500'
-}
+function tagDot(tag: WorkTag) { return tag === 'work' ? 'bg-primary' : 'bg-rose-300' }
+function tagAccent(tag: WorkTag) { return tag === 'work' ? 'border-l-primary' : 'border-l-rose-300' }
 
 function tagStyle(tag: WorkTag) {
   return tag === 'work'
-    ? 'bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300'
-    : 'bg-purple-100 text-purple-700 dark:bg-purple-900/40 dark:text-purple-300'
+    ? 'bg-primary/10 text-primary border-primary/20 dark:bg-primary/20 dark:text-primary dark:border-primary/30'
+    : 'bg-rose-50 text-rose-500 border-rose-200 dark:bg-rose-950/40 dark:text-rose-400 dark:border-rose-800/50'
 }
 
 function TagBadge({ tag }: { tag: WorkTag }) {
   return (
-    <span className={cn('inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium', tagStyle(tag))}>
+    <span className={cn('inline-flex items-center gap-1 px-2 py-0.5 rounded-full border text-[11px] font-medium', tagStyle(tag))}>
       {tag === 'work' ? <Briefcase className="w-3 h-3" /> : <User className="w-3 h-3" />}
       {tag}
     </span>
@@ -85,7 +70,7 @@ function hostname(url: string) {
   try { return new URL(url).hostname.replace(/^www\./, '') } catch { return url }
 }
 
-// ── Day totals ─────────────────────────────────────────────────────────────────
+// ── Day totals ───────────────────────────────────────────────────────────────
 
 function DaySummary({ entries }: { entries: WorkEntry[] }) {
   const workMs = entries.filter((e) => e.tag === 'work').reduce((s, e) => s + entryActiveMs(e), 0)
@@ -94,14 +79,14 @@ function DaySummary({ entries }: { entries: WorkEntry[] }) {
   return (
     <span className="flex items-center gap-2 ml-auto">
       {workMs > 0 && (
-        <span className="flex items-center gap-1 text-xs text-blue-500 dark:text-blue-400 font-medium tabular-nums">
-          <span className="w-1.5 h-1.5 rounded-full bg-blue-500 shrink-0" />
+        <span className="flex items-center gap-1 text-xs text-primary font-medium tabular-nums">
+          <span className="w-1.5 h-1.5 rounded-full bg-primary shrink-0" />
           {formatDuration(workMs)}
         </span>
       )}
       {personalMs > 0 && (
-        <span className="flex items-center gap-1 text-xs text-purple-500 dark:text-purple-400 font-medium tabular-nums">
-          <span className="w-1.5 h-1.5 rounded-full bg-purple-500 shrink-0" />
+        <span className="flex items-center gap-1 text-xs text-rose-400 font-medium tabular-nums">
+          <span className="w-1.5 h-1.5 rounded-full bg-rose-300 shrink-0" />
           {formatDuration(personalMs)}
         </span>
       )}
@@ -109,7 +94,7 @@ function DaySummary({ entries }: { entries: WorkEntry[] }) {
   )
 }
 
-// ── Live timer ─────────────────────────────────────────────────────────────────
+// ── Live timer ───────────────────────────────────────────────────────────────
 
 function LiveTimer({ entry }: { entry: WorkEntry }) {
   const [ms, setMs] = useState(() => getActiveMs(entry))
@@ -128,76 +113,52 @@ function LiveTimer({ entry }: { entry: WorkEntry }) {
   )
 }
 
-// ── Active session card ────────────────────────────────────────────────────────
+// ── Active session card ──────────────────────────────────────────────────────
 
 function ActiveCard({ entry, onPause, onResume, onStop, onNotes }: {
   entry: WorkEntry; onPause: () => void; onResume: () => void; onStop: () => void; onNotes: () => void
 }) {
   const isPaused = entry.status === 'paused'
   return (
-    <div className={cn(
-      'mx-4 mb-4 rounded-2xl border border-border bg-card p-4 space-y-4',
-      'border-l-[3px]',
-      tagAccent(entry.tag),
-    )}>
-      {/* Title row */}
+    <div className={cn('mx-4 mb-4 rounded-2xl border border-border bg-card p-4 space-y-4', 'border-l-[3px]', tagAccent(entry.tag))}>
       <div className="flex items-start justify-between gap-2">
         <div className="space-y-1.5 flex-1 min-w-0">
           <div className="flex items-center gap-2">
-            {/* Live dot */}
-            <span className={cn(
-              'w-2 h-2 rounded-full shrink-0',
-              isPaused ? 'bg-muted-foreground' : 'bg-emerald-500 animate-pulse',
-            )} />
+            <span className={cn('w-2 h-2 rounded-full shrink-0', isPaused ? 'bg-muted-foreground' : 'bg-emerald-500 animate-pulse')} />
             <p className="text-sm font-semibold leading-snug text-foreground truncate">{entry.title}</p>
           </div>
           <div className="flex items-center gap-2 pl-4">
             <TagBadge tag={entry.tag} />
-            <span className="text-xs text-muted-foreground">
-              {isPaused ? 'paused' : `since ${formatTime(entry.startedAt)}`}
-            </span>
+            <span className="text-xs text-muted-foreground">{isPaused ? 'paused' : `since ${formatTime(entry.startedAt)}`}</span>
           </div>
         </div>
-        <button
-          onClick={onNotes}
-          className={cn('p-1.5 rounded-md transition-colors shrink-0', entry.notes ? 'text-primary hover:bg-primary/10' : 'text-muted-foreground hover:bg-muted')}
+        <Button
+          variant="ghost" size="icon-sm" onClick={onNotes}
+          className={cn('shrink-0', entry.notes ? 'text-primary hover:bg-primary/10' : '')}
           title="Notes"
         >
           <FileText className="w-3.5 h-3.5" />
-        </button>
+        </Button>
       </div>
-
-      {/* Timer */}
-      <div className="pl-4">
-        <LiveTimer entry={entry} />
-      </div>
-
-      {/* Controls */}
+      <div className="pl-4"><LiveTimer entry={entry} /></div>
       <div className="flex items-center gap-2">
-        <button
-          onClick={isPaused ? onResume : onPause}
-          className="flex-1 flex items-center justify-center gap-2 py-2 rounded-xl bg-muted hover:bg-muted/70 text-sm font-medium transition-colors"
-        >
+        <Button variant="secondary" onClick={isPaused ? onResume : onPause} className="flex-1 gap-2 rounded-xl">
           {isPaused ? <><Play className="w-3.5 h-3.5" /> Resume</> : <><Pause className="w-3.5 h-3.5" /> Pause</>}
-        </button>
-        <button
-          onClick={onStop}
-          className="flex-1 flex items-center justify-center gap-2 py-2 rounded-xl bg-destructive/10 hover:bg-destructive/20 text-destructive text-sm font-medium transition-colors"
-        >
+        </Button>
+        <Button variant="ghost" onClick={onStop} className="flex-1 gap-2 rounded-xl bg-destructive/10 hover:bg-destructive/20 text-destructive hover:text-destructive">
           <Square className="w-3.5 h-3.5" /> Stop
-        </button>
+        </Button>
       </div>
     </div>
   )
 }
 
-// ── New entry form ─────────────────────────────────────────────────────────────
+// ── New entry form ───────────────────────────────────────────────────────────
 
 function NewEntryForm({ onStart }: { onStart: (title: string, tag: WorkTag) => void }) {
   const [title, setTitle] = useState('')
   const [tag, setTag] = useState<WorkTag>('work')
   const inputRef = useRef<HTMLInputElement>(null)
-
   useEffect(() => { setTimeout(() => inputRef.current?.focus(), 50) }, [])
 
   function handleSubmit(e: React.FormEvent) {
@@ -210,44 +171,26 @@ function NewEntryForm({ onStart }: { onStart: (title: string, tag: WorkTag) => v
 
   return (
     <form onSubmit={handleSubmit} className="mx-4 mb-5 space-y-2">
-      <input
-        ref={inputRef}
-        type="text"
-        placeholder="What are you working on?"
-        value={title}
-        onChange={(e) => setTitle(e.target.value)}
-        className="w-full px-3 py-2.5 rounded-xl bg-muted border-0 outline-none text-sm placeholder:text-muted-foreground"
-      />
+      <Input ref={inputRef} type="text" placeholder="What are you working on?" value={title} onChange={(e) => setTitle(e.target.value)} className="rounded-xl bg-muted border-0 shadow-none focus-visible:ring-0" />
       <div className="flex items-center gap-2">
         <div className="flex gap-1 p-1 bg-muted rounded-xl flex-1">
           {(['work', 'personal'] as WorkTag[]).map((t) => (
-            <button
-              key={t}
-              type="button"
-              onClick={() => setTag(t)}
-              className={cn(
-                'flex-1 flex items-center justify-center gap-1.5 py-1 px-2 rounded-lg text-xs font-medium transition-colors',
-                tag === t ? 'bg-background shadow-sm text-foreground' : 'text-muted-foreground hover:text-foreground',
-              )}
-            >
+            <button key={t} type="button" onClick={() => setTag(t)}
+              className={cn('flex-1 flex items-center justify-center gap-1.5 py-1 px-2 rounded-lg text-xs font-medium transition-colors', tag === t ? 'bg-background shadow-sm text-foreground' : 'text-muted-foreground hover:text-foreground')}>
               {t === 'work' ? <Briefcase className="w-3 h-3" /> : <User className="w-3 h-3" />}
               {t.charAt(0).toUpperCase() + t.slice(1)}
             </button>
           ))}
         </div>
-        <button
-          type="submit"
-          disabled={!title.trim()}
-          className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-primary text-primary-foreground text-sm font-medium disabled:opacity-40 transition-opacity"
-        >
+        <Button type="submit" disabled={!title.trim()} className="gap-1.5 rounded-xl">
           <Play className="w-3.5 h-3.5" /> Start
-        </button>
+        </Button>
       </div>
     </form>
   )
 }
 
-// ── Day group (collapsible) ────────────────────────────────────────────────────
+// ── Day group ────────────────────────────────────────────────────────────────
 
 function DayGroup({ date, entries, defaultOpen, onRemove, onNotes }: {
   date: string; entries: WorkEntry[]; defaultOpen: boolean
@@ -255,33 +198,18 @@ function DayGroup({ date, entries, defaultOpen, onRemove, onNotes }: {
 }) {
   const [open, setOpen] = useState(defaultOpen)
   const totalMs = entries.reduce((sum, e) => sum + entryActiveMs(e), 0)
-
   return (
     <div>
-      <button
-        onClick={() => setOpen((v) => !v)}
-        className="w-full flex items-center gap-1.5 py-1 text-left group"
-      >
-        <ChevronDown className={cn(
-          'w-3.5 h-3.5 text-muted-foreground/60 transition-transform duration-200 shrink-0',
-          !open && '-rotate-90',
-        )} />
+      <button onClick={() => setOpen((v) => !v)} className="w-full flex items-center gap-1.5 py-1 text-left group">
+        <ChevronDown className={cn('w-3.5 h-3.5 text-muted-foreground/60 transition-transform duration-200 shrink-0', !open && '-rotate-90')} />
         <span className="text-xs font-semibold text-muted-foreground flex-1">{date}</span>
-        {!open
-          ? totalMs > 0 && <span className="text-xs font-mono text-muted-foreground/80 tabular-nums">{formatDuration(totalMs)}</span>
-          : <DaySummary entries={entries} />
-        }
+        <DaySummary entries={entries} />
+        {!open && totalMs > 0 && <span className="text-xs font-mono text-muted-foreground/60 tabular-nums ml-1">{formatDuration(totalMs)}</span>}
       </button>
-
       {open && (
         <div className="mt-1 space-y-0.5">
           {entries.map((entry) => (
-            <HistoryEntry
-              key={entry.id}
-              entry={entry}
-              onRemove={() => onRemove(entry.id)}
-              onNotes={() => onNotes(entry.id)}
-            />
+            <HistoryEntry key={entry.id} entry={entry} onRemove={() => onRemove(entry.id)} onNotes={() => onNotes(entry.id)} />
           ))}
         </div>
       )}
@@ -289,7 +217,7 @@ function DayGroup({ date, entries, defaultOpen, onRemove, onNotes }: {
   )
 }
 
-// ── History entry ──────────────────────────────────────────────────────────────
+// ── History entry ────────────────────────────────────────────────────────────
 
 function HistoryEntry({ entry, onRemove, onNotes }: {
   entry: WorkEntry; onRemove: () => void; onNotes: () => void
@@ -297,38 +225,30 @@ function HistoryEntry({ entry, onRemove, onNotes }: {
   const doneMs = entryActiveMs(entry)
   return (
     <div className="flex items-center gap-2.5 px-2 py-2 rounded-lg hover:bg-muted/50 group transition-colors">
-      {/* Tag dot */}
       <span className={cn('w-2 h-2 rounded-full shrink-0', tagDot(entry.tag))} />
-
-      {/* Content */}
       <div className="flex-1 min-w-0">
         <p className="text-sm text-foreground leading-snug truncate">{entry.title}</p>
         <p className="text-xs text-muted-foreground tabular-nums">
           {formatTime(entry.startedAt)}{entry.endedAt && ` – ${formatTime(entry.endedAt)}`}
         </p>
       </div>
-
-      {/* Duration */}
-      <span className="text-xs font-mono text-muted-foreground tabular-nums shrink-0">{formatDuration(doneMs)}</span>
-
-      {/* Actions */}
-      <div className="flex items-center gap-0.5 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">
-        <button
-          onClick={onNotes}
-          className={cn('p-1 rounded transition-colors', entry.notes ? 'text-primary !opacity-100' : 'text-muted-foreground hover:text-foreground')}
-          title="Notes"
-        >
-          <FileText className="w-3.5 h-3.5" />
-        </button>
-        <button onClick={onRemove} className="p-1 rounded text-muted-foreground hover:text-destructive transition-colors">
-          <Trash2 className="w-3.5 h-3.5" />
-        </button>
-      </div>
+      {/* Notes icon — always visible if has notes, otherwise hover-only */}
+      <Button
+        variant="ghost" size="icon-xs" onClick={onNotes}
+        className={cn('shrink-0 transition-opacity', entry.notes ? 'text-primary opacity-100' : 'opacity-0 group-hover:opacity-100')}
+        title="Notes"
+      >
+        <FileText className="w-3.5 h-3.5" />
+      </Button>
+      <span className="text-xs font-mono text-muted-foreground tabular-nums shrink-0 w-12 text-right">{formatDuration(doneMs)}</span>
+      <Button variant="ghost" size="icon-xs" onClick={onRemove} className="shrink-0 opacity-0 group-hover:opacity-100 hover:text-destructive transition-opacity">
+        <Trash2 className="w-3.5 h-3.5" />
+      </Button>
     </div>
   )
 }
 
-// ── Task list view ─────────────────────────────────────────────────────────────
+// ── Add task form ────────────────────────────────────────────────────────────
 
 function AddTaskForm({ onAdd }: { onAdd: (title: string, tag: WorkTag, url?: string) => void }) {
   const [title, setTitle] = useState('')
@@ -341,162 +261,187 @@ function AddTaskForm({ onAdd }: { onAdd: (title: string, tag: WorkTag, url?: str
     const t = title.trim()
     if (!t) return
     onAdd(t, tag, url.trim() || undefined)
-    setTitle('')
-    setUrl('')
-    setShowUrl(false)
+    setTitle(''); setUrl(''); setShowUrl(false)
   }
 
   return (
     <form onSubmit={handleSubmit} className="mx-4 mb-5 space-y-2">
-      <input
-        type="text"
-        placeholder="Add a task…"
-        value={title}
-        onChange={(e) => setTitle(e.target.value)}
-        className="w-full px-3 py-2.5 rounded-xl bg-muted border-0 outline-none text-sm placeholder:text-muted-foreground"
-        autoFocus
-      />
+      <Input type="text" placeholder="Add a task…" value={title} onChange={(e) => setTitle(e.target.value)} className="rounded-xl bg-muted border-0 shadow-none focus-visible:ring-0" autoFocus />
       <div className="flex items-center gap-1.5">
         <div className="flex gap-1 p-1 bg-muted rounded-xl flex-1">
           {(['work', 'personal'] as WorkTag[]).map((t) => (
-            <button
-              key={t}
-              type="button"
-              onClick={() => setTag(t)}
-              className={cn(
-                'flex-1 flex items-center justify-center gap-1.5 py-1 px-2 rounded-lg text-xs font-medium transition-colors',
-                tag === t ? 'bg-background shadow-sm text-foreground' : 'text-muted-foreground hover:text-foreground',
-              )}
-            >
+            <button key={t} type="button" onClick={() => setTag(t)}
+              className={cn('flex-1 flex items-center justify-center gap-1.5 py-1 px-2 rounded-lg text-xs font-medium transition-colors', tag === t ? 'bg-background shadow-sm text-foreground' : 'text-muted-foreground hover:text-foreground')}>
               {t === 'work' ? <Briefcase className="w-3 h-3" /> : <User className="w-3 h-3" />}
               {t.charAt(0).toUpperCase() + t.slice(1)}
             </button>
           ))}
         </div>
-        <button
-          type="button"
-          onClick={() => setShowUrl((v) => !v)}
-          className={cn(
-            'p-2.5 rounded-xl transition-colors shrink-0',
-            showUrl ? 'bg-blue-100 text-blue-600 dark:bg-blue-900/40 dark:text-blue-400' : 'bg-muted text-muted-foreground hover:text-foreground',
-          )}
-          title="Add source link"
-        >
+        <Button type="button" variant="secondary" size="icon" onClick={() => setShowUrl((v) => !v)}
+          className={cn('rounded-xl shrink-0', showUrl ? 'bg-blue-100 text-blue-600 dark:bg-blue-900/40 dark:text-blue-400' : '')} title="Add source link">
           <Link className="w-4 h-4" />
-        </button>
-        <button
-          type="submit"
-          disabled={!title.trim()}
-          className="p-2.5 rounded-xl bg-primary text-primary-foreground disabled:opacity-40 transition-opacity shrink-0"
-          title="Add task"
-        >
+        </Button>
+        <Button type="submit" size="icon" disabled={!title.trim()} className="rounded-xl shrink-0" title="Add task">
           <Plus className="w-4 h-4" />
-        </button>
+        </Button>
       </div>
       {showUrl && (
-        <input
-          type="url"
-          placeholder="https://… (optional source link)"
-          value={url}
-          onChange={(e) => setUrl(e.target.value)}
-          className="w-full px-3 py-2 rounded-xl bg-muted border-0 outline-none text-sm placeholder:text-muted-foreground"
-          autoFocus
-        />
+        <Input type="url" placeholder="https://… (optional source link)" value={url} onChange={(e) => setUrl(e.target.value)} className="rounded-xl bg-muted border-0 shadow-none focus-visible:ring-0" autoFocus />
       )}
     </form>
   )
 }
 
-function TaskRow({ task, onRemove, onStart }: {
-  task: Task; onRemove: () => void; onStart: () => void
-}) {
+// ── Task row ─────────────────────────────────────────────────────────────────
+
+function TaskRow({ task, onRemove, onStart }: { task: Task; onRemove: () => void; onStart: () => void }) {
   const hasUrl = !!task.url
   return (
-    <div className={cn(
-      'flex items-center gap-2.5 px-3 py-2.5 rounded-xl group transition-colors',
-      hasUrl
-        ? 'bg-blue-50/50 dark:bg-blue-950/20 hover:bg-blue-50 dark:hover:bg-blue-950/30'
-        : 'hover:bg-muted/60',
-    )}>
-      {/* Tag dot */}
+    <div className={cn('flex items-center gap-2.5 px-3 py-2.5 rounded-xl group transition-colors', hasUrl ? 'bg-accent/60 hover:bg-accent' : 'hover:bg-muted/60')}>
       <span className={cn('w-2 h-2 rounded-full shrink-0 mt-0.5', tagDot(task.tag ?? 'work'))} />
-
-      {/* Content */}
       <div className="flex-1 min-w-0">
-        <p className={cn('text-sm font-medium leading-snug truncate', hasUrl ? 'text-blue-900 dark:text-blue-100' : 'text-foreground')}>
-          {task.title}
-        </p>
+        <p className="text-sm font-medium leading-snug truncate text-foreground">{task.title}</p>
         {hasUrl && (
-          <a
-            href={task.url}
-            target="_blank"
-            rel="noopener noreferrer"
-            onClick={(e) => e.stopPropagation()}
-            className="inline-flex items-center gap-1 text-xs text-blue-500 dark:text-blue-400 hover:underline"
-          >
-            <ExternalLink className="w-3 h-3 shrink-0" />
-            {hostname(task.url!)}
+          <a href={task.url} target="_blank" rel="noopener noreferrer" onClick={(e) => e.stopPropagation()} className="inline-flex items-center gap-1 text-xs text-primary/70 hover:text-primary hover:underline">
+            <ExternalLink className="w-3 h-3 shrink-0" />{hostname(task.url!)}
           </a>
         )}
       </div>
-
-      {/* Actions — visible on hover */}
       <div className="flex items-center gap-1 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">
-        <button
-          onClick={onStart}
-          className="flex items-center gap-1 px-2 py-1 rounded-lg text-xs font-medium bg-primary/10 text-primary hover:bg-primary/20 transition-colors"
-        >
+        <Button variant="ghost" size="sm" onClick={onStart} className="gap-1 px-2 py-1 rounded-lg text-xs bg-primary/10 text-primary hover:bg-primary/20 hover:text-primary h-auto">
           <Play className="w-3 h-3" /> Start
-        </button>
-        <button onClick={onRemove} className="p-1 rounded text-muted-foreground hover:text-destructive transition-colors">
+        </Button>
+        <Button variant="ghost" size="icon-xs" onClick={onRemove} className="hover:text-destructive">
           <Trash2 className="w-3.5 h-3.5" />
-        </button>
+        </Button>
       </div>
     </div>
   )
 }
 
-// ── Panel ──────────────────────────────────────────────────────────────────────
+// ── Notes tab ────────────────────────────────────────────────────────────────
+
+function NoteRow({ title, preview, date, hasContent, tag, taskLabel, onClick, onDelete }: {
+  title: string; preview: string; date: string; hasContent: boolean
+  tag?: WorkTag; taskLabel?: string
+  onClick: () => void; onDelete: () => void
+}) {
+  return (
+    <div className="group flex items-start gap-2.5 px-3 py-2.5 rounded-xl hover:bg-muted/60 transition-colors cursor-pointer" onClick={onClick}>
+      <FileText className={cn('w-4 h-4 shrink-0 mt-0.5', hasContent ? 'text-primary' : 'text-muted-foreground/50')} />
+      <div className="flex-1 min-w-0">
+        <div className="flex items-center gap-2 mb-0.5">
+          <p className="text-sm font-medium text-foreground truncate flex-1">{title || 'Untitled'}</p>
+          {tag && <span className={cn('shrink-0 w-1.5 h-1.5 rounded-full', tagDot(tag))} />}
+        </div>
+        {taskLabel && (
+          <span className="inline-flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded-full bg-primary/10 text-primary border border-primary/20 mb-1">
+            {taskLabel}
+          </span>
+        )}
+        {preview && <p className="text-xs text-muted-foreground truncate">{preview}</p>}
+        <p className="text-[10px] text-muted-foreground/60 mt-0.5">{date}</p>
+      </div>
+      <Button variant="ghost" size="icon-xs" onClick={(e) => { e.stopPropagation(); onDelete() }} className="opacity-0 group-hover:opacity-100 hover:text-destructive shrink-0">
+        <Trash2 className="w-3.5 h-3.5" />
+      </Button>
+    </div>
+  )
+}
+
+// ── Panel ─────────────────────────────────────────────────────────────────────
 
 export function WorkLogPanel({ open, onClose }: { open: boolean; onClose: () => void }) {
   const { entries, activeEntry, loading, start, pause, resume, stop, remove, updateNotes } = useWorkLog()
   const { tasks, addTask, removeTask } = useTaskList()
+  const { notes: standaloneNotes, addNote, updateNote, removeNote } = useStandaloneNotes()
   const groups = groupByDate(entries)
-  const [tab, setTab] = useState<'log' | 'tasks'>('log')
-  const [notesEntryId, setNotesEntryId] = useState<string | null>(null)
 
-  const notesEntry = notesEntryId ? entries.find((e) => e.id === notesEntryId) ?? null : null
-  const relatedEntries = notesEntry
-    ? entries.filter((e) => e.id !== notesEntry.id && e.title === notesEntry.title && !!e.notes)
+  type Tab = 'log' | 'tasks' | 'notes'
+  const [tab, setTab] = useState<Tab>('log')
+
+  // ── Note modal state (works for both session + standalone) ──
+  type NoteTarget =
+    | { kind: 'session'; entryId: string }
+    | { kind: 'standalone'; noteId: string }
+  const [noteTarget, setNoteTarget] = useState<NoteTarget | null>(null)
+
+  const sessionNoteEntry = noteTarget?.kind === 'session'
+    ? entries.find((e) => e.id === noteTarget.entryId) ?? null
+    : null
+  const relatedEntries = sessionNoteEntry
+    ? entries.filter((e) => e.id !== sessionNoteEntry.id && e.title === sessionNoteEntry.title && !!e.notes)
     : []
+  const standaloneNoteEntry = noteTarget?.kind === 'standalone'
+    ? standaloneNotes.find((n) => n.id === noteTarget.noteId) ?? null
+    : null
 
   function handleStartFromTask(task: Task) {
     start(task.title, task.tag ?? 'work')
     setTab('log')
   }
 
+  function handleNewNote() {
+    const id = crypto.randomUUID()
+    const now = new Date().toISOString()
+    const note: StandaloneNote = { id, title: '', content: '', taskId: null, createdAt: now, updatedAt: now }
+    addNote(note)
+    setNoteTarget({ kind: 'standalone', noteId: id })
+  }
+
   useEffect(() => {
     function onKeyDown(e: KeyboardEvent) {
-      if (e.key === 'Escape' && !notesEntryId) onClose()
+      if (e.key === 'Escape' && !noteTarget) onClose()
     }
     if (open) window.addEventListener('keydown', onKeyDown)
     return () => window.removeEventListener('keydown', onKeyDown)
-  }, [open, onClose, notesEntryId])
+  }, [open, onClose, noteTarget])
+
+  // Build combined notes list for the Notes tab
+  const sessionNoteItems = entries
+    .filter((e) => !!e.notes && e.status === 'done')
+    .sort((a, b) => new Date(b.startedAt).getTime() - new Date(a.startedAt).getTime())
+
+  const allNotesCount = standaloneNotes.length + sessionNoteItems.length
+
+  const TAB_BTN = (id: Tab, icon: React.ReactNode, label: string, count?: number) => (
+    <button
+      onClick={() => setTab(id)}
+      className={cn(
+        'flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium transition-colors',
+        tab === id ? 'bg-muted text-foreground' : 'text-muted-foreground hover:text-foreground hover:bg-muted/60',
+      )}
+    >
+      {icon} {label}
+      {count !== undefined && count > 0 && (
+        <span className="min-w-[1.1rem] h-[1.1rem] flex items-center justify-center rounded-full bg-primary/15 text-primary text-[10px] font-semibold px-1">{count}</span>
+      )}
+    </button>
+  )
 
   return (
     <>
-      {notesEntry && (
-        <WorkNoteModal
-          entry={notesEntry}
+      {/* Note modal — full-screen left panel, WorkLogPanel stays on right */}
+      {sessionNoteEntry && (
+        <NoteModal
+          mode="session"
+          entry={sessionNoteEntry}
           relatedEntries={relatedEntries}
-          onSave={(notes) => updateNotes(notesEntry.id, notes)}
-          onClose={() => setNotesEntryId(null)}
+          onSave={(notes) => updateNotes(sessionNoteEntry.id, notes)}
+          onClose={() => setNoteTarget(null)}
+        />
+      )}
+      {standaloneNoteEntry && (
+        <NoteModal
+          mode="standalone"
+          note={standaloneNoteEntry}
+          tasks={tasks}
+          onSave={(patch) => updateNote(standaloneNoteEntry.id, patch)}
+          onClose={() => setNoteTarget(null)}
         />
       )}
 
-      {open && (
-        <div className="fixed inset-0 z-40 bg-black/20 backdrop-blur-[2px]" onClick={onClose} />
-      )}
+      {open && <div className="fixed inset-0 z-40 bg-black/20 backdrop-blur-[2px]" onClick={onClose} />}
 
       <div className={cn(
         'fixed top-0 right-0 h-full w-full max-w-sm bg-background border-l border-border z-50',
@@ -504,43 +449,15 @@ export function WorkLogPanel({ open, onClose }: { open: boolean; onClose: () => 
         open ? 'translate-x-0' : 'translate-x-full',
       )}>
         {/* Header */}
-        <div className="flex items-center px-4 py-3 border-b border-border shrink-0 gap-2">
-          {/* Tabs — note the gap-6 for visual breathing room */}
+        <div className="flex items-center px-4 border-b border-border shrink-0 gap-2 h-14">
           <div className="flex items-center gap-1 flex-1">
-            <button
-              onClick={() => setTab('log')}
-              className={cn(
-                'flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium transition-colors',
-                tab === 'log' ? 'bg-muted text-foreground' : 'text-muted-foreground hover:text-foreground hover:bg-muted/60',
-              )}
-            >
-              <Clock className="w-3.5 h-3.5" /> Log
-            </button>
-
-            {/* Deliberate gap between the two tabs */}
-            <div className="w-3" />
-
-            <button
-              onClick={() => setTab('tasks')}
-              className={cn(
-                'flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium transition-colors',
-                tab === 'tasks' ? 'bg-muted text-foreground' : 'text-muted-foreground hover:text-foreground hover:bg-muted/60',
-              )}
-            >
-              <ListChecks className="w-3.5 h-3.5" />
-              Tasks
-              {tasks.length > 0 && (
-                <span className="min-w-[1.1rem] h-[1.1rem] flex items-center justify-center rounded-full bg-primary/15 text-primary text-[10px] font-semibold px-1">
-                  {tasks.length}
-                </span>
-              )}
-            </button>
+            {TAB_BTN('log', <Clock className="w-3.5 h-3.5" />, 'Log')}
+            {TAB_BTN('tasks', <ListChecks className="w-3.5 h-3.5" />, 'Tasks', tasks.length)}
+            {TAB_BTN('notes', <StickyNote className="w-3.5 h-3.5" />, 'Notes', allNotesCount)}
           </div>
-
-          <kbd className="text-xs text-muted-foreground bg-muted px-1.5 py-0.5 rounded font-mono">Ctrl+I</kbd>
-          <button onClick={onClose} className="p-1 rounded-md hover:bg-muted text-muted-foreground hover:text-foreground transition-colors">
+          <Button variant="ghost" size="icon-sm" onClick={onClose}>
             <X className="w-4 h-4" />
-          </button>
+          </Button>
         </div>
 
         {/* ── Log tab ── */}
@@ -553,34 +470,22 @@ export function WorkLogPanel({ open, onClose }: { open: boolean; onClose: () => 
                   onPause={() => pause(activeEntry.id)}
                   onResume={() => resume(activeEntry.id)}
                   onStop={() => stop(activeEntry.id)}
-                  onNotes={() => setNotesEntryId(activeEntry.id)}
+                  onNotes={() => setNoteTarget({ kind: 'session', entryId: activeEntry.id })}
                 />
+                <div className="mx-4 mt-4 h-px bg-border" />
               </div>
             )}
-
-            <div className="mx-4 mb-5 h-px bg-border" />
-
-            <NewEntryForm onStart={start} />
-
-            {loading && (
-              <p className="px-4 text-xs text-muted-foreground animate-pulse">Loading history…</p>
-            )}
-
+            <div className="pt-4">
+              <NewEntryForm onStart={start} />
+            </div>
+            {loading && <p className="px-4 text-xs text-muted-foreground animate-pulse">Loading history…</p>}
             {!loading && groups.length > 0 && (
               <div className="px-4 pb-8">
-                <p className="text-[11px] font-semibold text-muted-foreground uppercase tracking-widest mb-3">
-                  History
-                </p>
+                <p className="text-[11px] font-semibold text-muted-foreground uppercase tracking-widest mb-3">History</p>
                 <div className="space-y-3">
                   {groups.map(([date, dateEntries]) => (
-                    <DayGroup
-                      key={date}
-                      date={date}
-                      entries={dateEntries}
-                      defaultOpen={date === 'Today'}
-                      onRemove={remove}
-                      onNotes={setNotesEntryId}
-                    />
+                    <DayGroup key={date} date={date} entries={dateEntries} defaultOpen={date === 'Today'}
+                      onRemove={remove} onNotes={(id) => setNoteTarget({ kind: 'session', entryId: id })} />
                   ))}
                 </div>
               </div>
@@ -591,10 +496,7 @@ export function WorkLogPanel({ open, onClose }: { open: boolean; onClose: () => 
         {/* ── Tasks tab ── */}
         {tab === 'tasks' && (
           <div className="flex-1 overflow-y-auto">
-            <div className="pt-4">
-              <AddTaskForm onAdd={addTask} />
-            </div>
-
+            <div className="pt-4"><AddTaskForm onAdd={addTask} /></div>
             {tasks.length === 0 ? (
               <div className="px-4 py-8 flex flex-col items-center gap-2 text-center">
                 <ListChecks className="w-8 h-8 text-muted-foreground/30" />
@@ -604,13 +506,67 @@ export function WorkLogPanel({ open, onClose }: { open: boolean; onClose: () => 
             ) : (
               <div className="px-4 pb-8 space-y-1">
                 {tasks.map((task) => (
-                  <TaskRow
-                    key={task.id}
-                    task={task}
-                    onRemove={() => removeTask(task.id)}
-                    onStart={() => handleStartFromTask(task)}
-                  />
+                  <TaskRow key={task.id} task={task} onRemove={() => removeTask(task.id)} onStart={() => handleStartFromTask(task)} />
                 ))}
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* ── Notes tab ── */}
+        {tab === 'notes' && (
+          <div className="flex-1 overflow-y-auto">
+            <div className="px-4 pt-4 pb-3">
+              <Button size="sm" variant="outline" className="w-full gap-2" onClick={handleNewNote}>
+                <Plus className="w-3.5 h-3.5" /> New Note
+              </Button>
+            </div>
+
+            {allNotesCount === 0 ? (
+              <div className="px-4 py-8 flex flex-col items-center gap-2 text-center">
+                <StickyNote className="w-8 h-8 text-muted-foreground/30" />
+                <p className="text-sm text-muted-foreground">No notes yet</p>
+                <p className="text-xs text-muted-foreground/60">Create a note or add notes to sessions</p>
+              </div>
+            ) : (
+              <div className="px-4 pb-8 space-y-0.5">
+                {/* Standalone notes */}
+                {standaloneNotes.map((note) => {
+                  const linkedTask = note.taskId ? tasks.find((t) => t.id === note.taskId) : null
+                  const preview = note.content.replace(/[#*`>\-]/g, '').trim().slice(0, 80)
+                  return (
+                    <NoteRow
+                      key={note.id}
+                      title={note.title || 'Untitled'}
+                      preview={preview}
+                      date={new Date(note.updatedAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                      hasContent={!!note.content.trim()}
+                      taskLabel={linkedTask?.title}
+                      onClick={() => setNoteTarget({ kind: 'standalone', noteId: note.id })}
+                      onDelete={() => removeNote(note.id)}
+                    />
+                  )
+                })}
+
+                {/* Session notes */}
+                {sessionNoteItems.length > 0 && (
+                  <>
+                    {standaloneNotes.length > 0 && <div className="h-px bg-border my-3" />}
+                    <p className="text-[11px] font-semibold text-muted-foreground uppercase tracking-widest mb-2 px-1">Session notes</p>
+                    {sessionNoteItems.map((entry) => (
+                      <NoteRow
+                        key={entry.id}
+                        title={entry.title}
+                        preview={(entry.notes ?? '').replace(/[#*`>\-]/g, '').trim().slice(0, 80)}
+                        date={new Date(entry.startedAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                        hasContent={!!entry.notes?.trim()}
+                        tag={entry.tag}
+                        onClick={() => setNoteTarget({ kind: 'session', entryId: entry.id })}
+                        onDelete={() => remove(entry.id)}
+                      />
+                    ))}
+                  </>
+                )}
               </div>
             )}
           </div>

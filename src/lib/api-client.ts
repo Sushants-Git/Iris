@@ -144,6 +144,20 @@ export const tasksApi = {
     request<{ ok: boolean }>(`/tasks/${id}`, { method: 'DELETE' }),
 }
 
+// ─── Standalone Notes ─────────────────────────────────────────────────────────
+
+export type StandaloneNotePayload = { id: string; title: string; content: string; taskId: string | null; createdAt: string; updatedAt: string }
+
+export const standaloneNotesApi = {
+  list: () => request<StandaloneNotePayload[]>('/notes'),
+  create: (note: Omit<StandaloneNotePayload, 'updatedAt'>) =>
+    request<{ ok: boolean }>('/notes', { method: 'POST', body: JSON.stringify(note) }),
+  update: (id: string, patch: { title?: string; content?: string; taskId?: string | null }) =>
+    request<{ ok: boolean }>(`/notes/${id}`, { method: 'PATCH', body: JSON.stringify(patch) }),
+  delete: (id: string) =>
+    request<{ ok: boolean }>(`/notes/${id}`, { method: 'DELETE' }),
+}
+
 // ─── Preview ──────────────────────────────────────────────────────────────────
 
 export const previewApi = {

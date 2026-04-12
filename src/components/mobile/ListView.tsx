@@ -1,6 +1,7 @@
 import { useState, useRef } from 'react'
 import { Plus, Copy, Check, Trash2, Link, Search, FolderOpen, Pencil, CheckCircle2, Circle, X } from 'lucide-react'
 import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
 import { ListItem } from './ListItem'
 import { AddItemModal } from '@/components/modals/AddItemModal'
 import { isImageUrl } from '@/lib/utils'
@@ -86,22 +87,26 @@ function ImageGridItem({
       )}
 
       {!isSelectMode && item.url && (
-        <button
+        <Button
+          variant="ghost"
+          size="icon-xs"
           onClick={handleCopy}
-          className="absolute top-1.5 right-1.5 p-1 rounded-md bg-black/30 text-white backdrop-blur-sm"
+          className="absolute top-1.5 right-1.5 bg-black/30 text-white hover:bg-black/50 hover:text-white backdrop-blur-sm rounded-md"
           title="Copy link"
         >
           {copied ? <Check className="w-3 h-3 text-emerald-400" /> : <Copy className="w-3 h-3" />}
-        </button>
+        </Button>
       )}
 
       {!isSelectMode && (
-        <button
+        <Button
+          variant="ghost"
+          size="icon-xs"
           onClick={onDelete}
-          className="absolute bottom-1.5 right-1.5 p-1 rounded-md bg-black/30 text-white backdrop-blur-sm"
+          className="absolute bottom-1.5 right-1.5 bg-black/30 text-white hover:bg-black/50 hover:text-white backdrop-blur-sm rounded-md"
         >
           <Trash2 className="w-3 h-3" />
-        </button>
+        </Button>
       )}
     </div>
   )
@@ -151,7 +156,7 @@ function SubcategorySection({
         <FolderOpen className="w-4 h-4 text-muted-foreground shrink-0" />
         {renaming ? (
           <>
-            <input
+            <Input
               ref={inputRef}
               value={renameValue}
               onChange={(e) => setRenameValue(e.target.value)}
@@ -160,12 +165,12 @@ function SubcategorySection({
                 if (e.key === 'Escape') setRenaming(false)
               }}
               onBlur={commitRename}
-              className="flex-1 text-sm font-semibold bg-transparent border-b border-primary outline-none min-w-0"
+              className="flex-1 h-7 text-sm font-semibold bg-transparent border-0 border-b border-primary rounded-none shadow-none focus-visible:ring-0 px-0 min-w-0"
               autoFocus
             />
-            <button onClick={() => setRenaming(false)} className="p-0.5 text-muted-foreground">
+            <Button variant="ghost" size="icon-xs" onClick={() => setRenaming(false)}>
               <X className="w-3.5 h-3.5" />
-            </button>
+            </Button>
           </>
         ) : (
           <>
@@ -176,20 +181,23 @@ function SubcategorySection({
               {name}
             </span>
             <div className="flex-1 h-px bg-border" />
-            <button
+            <Button
+              variant="ghost"
+              size="icon-xs"
               onClick={startRename}
-              className="p-1 text-muted-foreground hover:text-foreground active:text-foreground transition-colors"
               title="Rename category"
             >
               <Pencil className="w-3.5 h-3.5" />
-            </button>
-            <button
+            </Button>
+            <Button
+              variant="ghost"
+              size="icon-xs"
               onClick={onDeleteHeader}
-              className="p-1 text-muted-foreground hover:text-destructive active:text-destructive transition-colors"
+              className="hover:text-destructive"
               title="Delete category"
             >
               <Trash2 className="w-3.5 h-3.5" />
-            </button>
+            </Button>
           </>
         )}
       </div>
@@ -335,20 +343,22 @@ export function ListView({
       <div className="px-4 pt-3 pb-2 flex items-center gap-2">
         <div className="relative flex-1">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-          <input
+          <Input
             type="text"
             placeholder="Search…"
             value={query}
             onChange={(e) => setQuery(e.target.value)}
-            className="w-full pl-9 pr-3 py-2 text-sm rounded-lg bg-muted border-0 outline-none placeholder:text-muted-foreground"
+            className="pl-9 rounded-lg bg-muted border-0 shadow-none focus-visible:ring-0"
           />
         </div>
-        <button
+        <Button
+          variant="ghost"
+          size="sm"
           onClick={toggleSelectMode}
-          className="text-sm text-muted-foreground hover:text-foreground active:text-foreground px-2 py-1.5 rounded-lg hover:bg-muted transition-colors shrink-0"
+          className="shrink-0"
         >
           {isSelectMode ? 'Cancel' : 'Select'}
-        </button>
+        </Button>
       </div>
 
       {/* pt-2 gives room for the status dot that overflows the first card's top border */}
@@ -422,25 +432,27 @@ export function ListView({
           <span className="text-sm font-medium text-foreground">
             {selectedIds.size} selected
           </span>
-          <button
+          <Button
+            variant="ghost"
+            size="sm"
             onClick={handleDeleteSelected}
-            className="flex items-center gap-1.5 text-sm font-medium text-destructive hover:text-destructive/80 active:text-destructive/80"
+            className="gap-1.5 text-destructive hover:text-destructive"
           >
             <Trash2 className="w-4 h-4" />
             Delete
-          </button>
+          </Button>
         </div>
       )}
 
       {/* FAB — hidden in select mode */}
       {!isSelectMode && (
-        <button
+        <Button
           onClick={() => setAddOpen(true)}
-          className="fixed bottom-6 right-4 z-30 w-12 h-12 rounded-full bg-primary text-primary-foreground shadow-lg flex items-center justify-center"
+          className="fixed bottom-6 right-4 z-30 w-12 h-12 rounded-full shadow-lg p-0"
           aria-label="Add item"
         >
           <Plus className="w-5 h-5" />
-        </button>
+        </Button>
       )}
 
       <AddItemModal

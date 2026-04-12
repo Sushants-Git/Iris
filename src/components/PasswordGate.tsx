@@ -1,6 +1,8 @@
 import { useState } from 'react'
 import { Eye, EyeOff, Loader2 } from 'lucide-react'
 import { getToken, setToken, clearToken } from '@/lib/api-client'
+import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
 
 function isAuthed() {
   return !!getToken()
@@ -48,36 +50,34 @@ export function PasswordGate({ children }: Props) {
     <div className="fixed inset-0 flex items-center justify-center bg-background">
       <div className="w-full max-w-sm px-6">
         <h1 className="text-2xl font-semibold mb-8 text-center">Iris</h1>
-        <form onSubmit={handleSubmit} className="space-y-4">
+        <form onSubmit={handleSubmit} className="space-y-3">
           <div className="relative">
-            <input
+            <Input
               type={showPw ? 'text' : 'password'}
               placeholder="Password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               autoFocus
               autoComplete="current-password"
-              className="w-full px-4 py-3 pr-10 rounded-xl border border-border bg-muted text-sm outline-none focus:ring-2 focus:ring-primary/40 placeholder:text-muted-foreground"
+              className="h-10 pr-10"
             />
-            <button
+            <Button
               type="button"
+              variant="ghost"
+              size="icon-sm"
               onClick={() => setShowPw((v) => !v)}
-              className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+              className="absolute right-1.5 top-1/2 -translate-y-1/2 text-muted-foreground"
               tabIndex={-1}
             >
               {showPw ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-            </button>
+            </Button>
           </div>
 
           {error && <p className="text-sm text-destructive text-center">{error}</p>}
 
-          <button
-            type="submit"
-            disabled={loading || !password}
-            className="w-full py-3 rounded-xl bg-primary text-primary-foreground text-sm font-medium disabled:opacity-50 transition-opacity"
-          >
-            {loading ? <Loader2 className="w-4 h-4 animate-spin mx-auto" /> : 'Enter'}
-          </button>
+          <Button type="submit" disabled={loading || !password} className="w-full h-10">
+            {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Enter'}
+          </Button>
         </form>
       </div>
     </div>

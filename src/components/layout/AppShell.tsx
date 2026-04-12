@@ -4,6 +4,7 @@ import { Menu, Clock } from 'lucide-react'
 import { Sidebar } from './Sidebar'
 import { WorkLogPanel } from '@/components/WorkLogPanel'
 import { useMediaQuery } from '@/hooks/useMediaQuery'
+import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
 
 export function AppShell() {
@@ -31,21 +32,13 @@ export function AppShell() {
       <div className="flex flex-col h-full">
         {/* Mobile top bar */}
         <header className="flex items-center gap-3 px-4 py-3 border-b border-border bg-background sticky top-0 z-40">
-          <button
-            onClick={() => setSidebarOpen((v) => !v)}
-            className="p-1 rounded-md hover:bg-muted"
-            aria-label="Toggle menu"
-          >
+          <Button variant="ghost" size="icon" onClick={() => setSidebarOpen((v) => !v)} aria-label="Toggle menu">
             <Menu className="w-5 h-5" />
-          </button>
+          </Button>
           <span className="font-semibold text-sm flex-1">Iris</span>
-          <button
-            onClick={() => setWorkLogOpen((v) => !v)}
-            className="p-1 rounded-md hover:bg-muted text-muted-foreground"
-            aria-label="Work log"
-          >
+          <Button variant="ghost" size="icon" onClick={() => setWorkLogOpen((v) => !v)} aria-label="Work log">
             <Clock className="w-5 h-5" />
-          </button>
+          </Button>
         </header>
 
         {/* Sidebar backdrop */}

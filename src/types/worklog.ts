@@ -1,4 +1,13 @@
 export type WorkTag = 'work' | 'personal'
+
+export interface StandaloneNote {
+  id: string
+  title: string
+  content: string
+  taskId: string | null
+  createdAt: string
+  updatedAt: string
+}
 export type WorkStatus = 'active' | 'paused' | 'done'
 
 export interface Task {
