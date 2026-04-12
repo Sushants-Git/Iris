@@ -1,16 +1,17 @@
-import { useRef, useState, useEffect } from 'react'
+import { useRef, useState, useEffect, memo } from 'react'
 import { Trash2, GripHorizontal, Pencil, RotateCw, BringToFront } from 'lucide-react'
 import { cn, isImageUrl } from '@/lib/utils'
 import { CardStatusBadge } from './CardStatusBadge'
 import type { Item, Status } from '@/types'
 import type { CanvasTransform } from '@/hooks/useCanvas'
+import type { RefObject } from 'react'
 
 const MIN_W = 220
 const MIN_H = 140
 
 interface Props {
   item: Item
-  transform: CanvasTransform
+  transformRef: RefObject<CanvasTransform>
   highlighted?: boolean
   selected?: boolean
   onUpdate: (payload: {
@@ -27,9 +28,9 @@ interface Props {
   children: React.ReactNode
 }
 
-export function CanvasCard({
+export const CanvasCard = memo(function CanvasCard({
   item,
-  transform,
+  transformRef,
   highlighted,
   selected,
   onUpdate,
@@ -116,8 +117,9 @@ export function CanvasCard({
 
   function onDragPointerMove(e: React.PointerEvent) {
     if (!dragRef.current) return
-    const dx = (e.clientX - dragRef.current.startX) / transform.scale
-    const dy = (e.clientY - dragRef.current.startY) / transform.scale
+    const scale = transformRef.current?.scale ?? 1
+    const dx = (e.clientX - dragRef.current.startX) / scale
+    const dy = (e.clientY - dragRef.current.startY) / scale
     setPos({ x: dragRef.current.origX + dx, y: dragRef.current.origY + dy })
   }
 
@@ -143,8 +145,9 @@ export function CanvasCard({
 
   function onResizePointerMove(e: React.PointerEvent) {
     if (!resizeRef.current) return
-    const dw = (e.clientX - resizeRef.current.startX) / transform.scale
-    const dh = (e.clientY - resizeRef.current.startY) / transform.scale
+    const scale = transformRef.current?.scale ?? 1
+    const dw = (e.clientX - resizeRef.current.startX) / scale
+    const dh = (e.clientY - resizeRef.current.startY) / scale
     setSize({
       w: Math.max(MIN_W, resizeRef.current.origW + dw),
       h: Math.max(MIN_H, resizeRef.current.origH + dh),
@@ -191,13 +194,16 @@ export function CanvasCard({
 
     <div
       className={cn(
-        'w-full h-full bg-card border border-border rounded-xl shadow-sm flex flex-col overflow-hidden',
-        selected && 'ring-2 ring-primary/50',
-        (isDragging || isResizing) && 'shadow-lg ring-2 ring-primary/20',
-        !isImage && item.status === 'done' && 'border-b-emerald-400 border-b-2',
-        !isImage && item.status === 'in_progress' && 'border-b-blue-400 border-b-2',
+        'w-full h-full bg-card border border-border/70 rounded-xl flex flex-col overflow-hidden',
         animating && 'card-highlight',
       )}
+      style={{
+        boxShadow: selected
+          ? '0 0 0 2px var(--color-primary, #8b2045), 0 4px 20px -4px oklch(0.375 0.155 12 / 0.2)'
+          : isDragging || isResizing
+          ? '0 8px 32px -8px oklch(0.375 0.155 12 / 0.25)'
+          : '0 1px 8px -2px oklch(0.78 0.04 308 / 0.18), 0 0 0 1px oklch(0.78 0.04 305 / 0.12)',
+      }}
     >
       {/* Size badge — shown while resizing and 2s after */}
       {showSize && (
@@ -213,7 +219,7 @@ export function CanvasCard({
         onPointerDown={onDragPointerDown}
         onPointerMove={onDragPointerMove}
         onPointerUp={onDragPointerUp}
-        className="flex items-center justify-between px-3 py-2 border-b border-border bg-muted/30 cursor-grab active:cursor-grabbing select-none"
+        className="flex items-center justify-between px-3 py-1.5 border-b border-border/60 cursor-grab active:cursor-grabbing select-none"
       >
         <div className="flex items-center gap-2">
           <GripHorizontal className="w-3.5 h-3.5 text-muted-foreground/50" />
@@ -228,7 +234,7 @@ export function CanvasCard({
           <button
             onPointerDown={(e) => e.stopPropagation()}
             onClick={(e) => { e.stopPropagation(); onBringToFront() }}
-            className="p-1 rounded hover:bg-muted text-muted-foreground hover:text-foreground opacity-0 group-hover:opacity-100 transition-opacity"
+            className="p-1 rounded hover:bg-accent text-muted-foreground/70 hover:text-foreground opacity-0 group-hover:opacity-100 transition-all"
             aria-label="Bring to front"
           >
             <BringToFront className="w-3 h-3" />
@@ -236,7 +242,7 @@ export function CanvasCard({
           <button
             onPointerDown={(e) => e.stopPropagation()}
             onClick={(e) => { e.stopPropagation(); onEdit() }}
-            className="p-1 rounded hover:bg-muted text-muted-foreground hover:text-foreground opacity-0 group-hover:opacity-100 transition-opacity"
+            className="p-1 rounded hover:bg-accent text-muted-foreground/70 hover:text-foreground opacity-0 group-hover:opacity-100 transition-all"
             aria-label="Edit card"
           >
             <Pencil className="w-3 h-3" />
@@ -244,7 +250,7 @@ export function CanvasCard({
           <button
             onPointerDown={(e) => e.stopPropagation()}
             onClick={(e) => { e.stopPropagation(); onDelete() }}
-            className="p-1 rounded hover:bg-destructive/10 text-muted-foreground hover:text-destructive opacity-0 group-hover:opacity-100 transition-opacity"
+            className="p-1 rounded hover:bg-destructive/10 text-muted-foreground/70 hover:text-destructive opacity-0 group-hover:opacity-100 transition-all"
             aria-label="Delete card"
           >
             <Trash2 className="w-3 h-3" />
@@ -265,11 +271,11 @@ export function CanvasCard({
         className="absolute bottom-0 right-0 w-4 h-4 cursor-se-resize flex items-end justify-end p-0.5"
         style={{ touchAction: 'none' }}
       >
-        <svg width="8" height="8" viewBox="0 0 8 8" className="text-muted-foreground/40">
+        <svg width="8" height="8" viewBox="0 0 8 8" className="text-muted-foreground/50 opacity-0 group-hover:opacity-100 transition-opacity">
           <path d="M0 8 L8 0 M4 8 L8 4" stroke="currentColor" strokeWidth="1.5" />
         </svg>
       </div>
     </div>
     </div>
   )
-}
+})

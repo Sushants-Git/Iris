@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { Plus, RotateCcw, Minus } from 'lucide-react'
+import { Plus, Minus, Info } from 'lucide-react'
 import { useCanvas } from '@/hooks/useCanvas'
 import { CanvasCard } from './CanvasCard'
 import { LinkCard } from './LinkCard'
@@ -38,18 +38,28 @@ export function Canvas({
   onDeleteItem,
 }: Props) {
   const containerRef = useRef<HTMLDivElement>(null)
-  const { transform, pan, zoom, reset, panTo } = useCanvas()
-  const transformRef = useRef(transform)
-  transformRef.current = transform
+  const { transform, transformRef, worldRef, pan, zoom, reset, panTo, scaleTo } = useCanvas()
 
   const [addOpen, setAddOpen] = useState(false)
   const [editItem, setEditItem] = useState<Item | null>(null)
   const [pasting, setPasting] = useState(false)
   const [cmdOpen, setCmdOpen] = useState(false)
+  const [helpOpen, setHelpOpen] = useState(false)
   const [highlightId, setHighlightId] = useState<string | null>(null)
   const [topIds, setTopIds] = useState<string[]>([])
-  const [showMinimap, setShowMinimap] = useState(false)
+  const [minimapPinned, setMinimapPinned] = useState(false)
   const minimapTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const helpRef = useRef<HTMLDivElement>(null)
+
+  // Close help when clicking outside
+  useEffect(() => {
+    if (!helpOpen) return
+    function onDown(e: MouseEvent) {
+      if (!helpRef.current?.contains(e.target as Node)) setHelpOpen(false)
+    }
+    document.addEventListener('pointerdown', onDown)
+    return () => document.removeEventListener('pointerdown', onDown)
+  }, [helpOpen])
 
   // Clear highlight and search, and reset canvas view when board changes
   useEffect(() => {
@@ -59,9 +69,7 @@ export function Canvas({
   }, [boardId])
 
   function flashMinimap() {
-    setShowMinimap(true)
-    if (minimapTimerRef.current) clearTimeout(minimapTimerRef.current)
-    minimapTimerRef.current = setTimeout(() => setShowMinimap(false), 1200)
+    // no-op: minimap only shows when pinned via M key
   }
 
   // ── Selection ───────────────────────────────────────────────────────────────
@@ -98,11 +106,23 @@ export function Canvas({
   // ── Space + Delete key ──────────────────────────────────────────────────────
   useEffect(() => {
     function onKeyDown(e: KeyboardEvent) {
-      const tag = (e.target as HTMLElement).tagName
+      const target = e.target as HTMLElement
+      const tag = target.tagName
       if (tag === 'INPUT' || tag === 'TEXTAREA') return
+      if (target.contentEditable === 'true') return   // TipTap / any rich editor
       if (e.code === 'Space') {
         e.preventDefault()
         spaceRef.current = true
+      }
+      if (e.key === 'm' || e.key === 'M') {
+        setMinimapPinned((v) => !v)
+      }
+      if (e.key === '0') {
+        const el = containerRef.current
+        if (el) {
+          const { width, height } = el.getBoundingClientRect()
+          scaleTo(1, width, height)
+        }
       }
       if ((e.key === 'Delete' || e.key === 'Backspace') && selectedIds.size > 0) {
         selectedIds.forEach((id) => onDeleteItem(id))
@@ -291,19 +311,19 @@ export function Canvas({
   return (
     <div
       ref={containerRef}
-      className="relative w-full h-full overflow-hidden bg-[radial-gradient(circle,_#e5e7eb_1px,_transparent_1px)] bg-[length:24px_24px]"
+      className="canvas-bg relative w-full h-full overflow-hidden"
       style={{ touchAction: 'none', cursor }}
       onPointerDown={onBgPointerDown}
       onPointerMove={onBgPointerMove}
       onPointerUp={onBgPointerUp}
     >
-      {/* World div */}
+      {/* World div — transform applied directly via ref, bypassing React re-renders */}
       <div
+        ref={worldRef}
         style={{
           position: 'absolute',
           top: 0,
           left: 0,
-          transform: `translate(${transform.x}px, ${transform.y}px) scale(${transform.scale})`,
           transformOrigin: '0 0',
           willChange: 'transform',
         }}
@@ -324,7 +344,7 @@ export function Canvas({
           >
             <CanvasCard
               item={item}
-              transform={transform}
+              transformRef={transformRef}
               highlighted={item.id === highlightId}
               selected={selectedIds.has(item.id)}
               onUpdate={(payload) => onUpdateItem(item.id, payload)}
@@ -392,20 +412,49 @@ export function Canvas({
         />
       )}
 
-      {/* Toolbar */}
+      {/* Info icon — top right */}
+      <div
+        ref={helpRef}
+        className="absolute top-4 right-4 z-10"
+        onPointerDown={(e) => e.stopPropagation()}
+      >
+        <Button
+          variant="ghost"
+          size="icon-sm"
+          className="rounded-full bg-background/80 backdrop-blur-sm border border-border shadow-sm text-muted-foreground hover:text-foreground"
+          onClick={() => setHelpOpen((v) => !v)}
+          title="Keyboard shortcuts"
+        >
+          <Info className="w-3.5 h-3.5" />
+        </Button>
+        {helpOpen && (
+          <div className="absolute top-9 right-0 w-64 bg-popover border border-border rounded-xl shadow-xl p-4 text-xs space-y-2">
+            <p className="font-semibold text-foreground mb-2">Keyboard shortcuts</p>
+            {[
+              ['Ctrl J', 'Sidebar'],
+              ['Ctrl K', 'Search'],
+              ['Ctrl I', 'Work log'],
+              ['Ctrl \\', 'Toggle list view'],
+              ['M', 'Toggle minimap'],
+              ['0', 'Zoom to 100%'],
+              ['Space + drag', 'Pan'],
+              ['⌘V / Ctrl V', 'Paste link or text'],
+              ['Delete', 'Delete selected'],
+            ].map(([key, desc]) => (
+              <div key={key} className="flex items-center justify-between gap-2">
+                <span className="text-muted-foreground">{desc}</span>
+                <kbd className="shrink-0 font-mono text-[10px] bg-muted border border-border rounded px-1.5 py-0.5 text-foreground">{key}</kbd>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {/* Toolbar — bottom right */}
       <div
         className="absolute bottom-5 right-5 flex gap-2 z-10"
         onPointerDown={(e) => e.stopPropagation()}
       >
-        <Button
-          variant="outline"
-          size="icon"
-          className="rounded-full shadow-md bg-background"
-          onClick={reset}
-          title="Reset view"
-        >
-          <RotateCcw className="w-4 h-4" />
-        </Button>
         <Button
           size="icon"
           className="rounded-full shadow-md w-10 h-10"
@@ -457,7 +506,7 @@ export function Canvas({
 
       {/* Zoom controls */}
       <div
-        className="group absolute bottom-5 left-5 flex items-center bg-background/80 border border-border rounded-md shadow-sm z-10 overflow-hidden select-none"
+        className="group absolute bottom-5 left-5 flex items-center bg-background border border-border rounded-lg shadow-sm z-10 overflow-hidden select-none"
         onPointerDown={(e) => e.stopPropagation()}
       >
         <button
@@ -492,9 +541,9 @@ export function Canvas({
       </div>
 
       {/* Minimap — visible only while moving */}
-      <div className={`transition-opacity duration-300 ${showMinimap ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}>
+      <div className={`transition-opacity duration-300 ${minimapPinned ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}>
         <Minimap
-          items={items}
+          items={items.filter((i) => i.type !== 'subcategory')}
           transform={transform}
           viewportW={containerRef.current?.clientWidth ?? 800}
           viewportH={containerRef.current?.clientHeight ?? 600}
