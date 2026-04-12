@@ -8,21 +8,22 @@ interface Props {
   item: Item
   onStatusToggle: (status: Status) => void
   onDelete: () => void
+  onEdit?: () => void
   isSelectMode?: boolean
   isSelected?: boolean
   onToggleSelect?: () => void
 }
 
 const DOT_COLORS: Record<Status, string> = {
-  pending:     'bg-amber-400 border-card',
-  in_progress: 'bg-blue-500 border-card',
-  done:        'bg-emerald-500 border-card',
+  pending:     'bg-muted-foreground/40 border-card',
+  in_progress: 'bg-primary border-card',
+  done:        'bg-teal-500 border-card',
 }
 
 const SWIPE_BG: Record<Status, string> = {
-  done:        'bg-emerald-500',
-  in_progress: 'bg-blue-500',
-  pending:     'bg-amber-400',
+  done:        'bg-teal-500',
+  in_progress: 'bg-primary',
+  pending:     'bg-muted-foreground',
 }
 
 function swipeTarget(status: Status, dir: 'right' | 'left'): Status {
@@ -37,7 +38,7 @@ const FLY_EXTRA = 36
 // Phase of the card during/after swipe
 type Phase = 'idle' | 'dragging' | 'flying' | 'springing'
 
-export function ListItem({ item, onStatusToggle, onDelete, isSelectMode, isSelected, onToggleSelect }: Props) {
+export function ListItem({ item, onStatusToggle, onDelete, onEdit, isSelectMode, isSelected, onToggleSelect }: Props) {
   const title = getTitle(item)
   const description = getDescription(item)
   const thumbnail = getThumbnail(item)
@@ -268,6 +269,13 @@ export function ListItem({ item, onStatusToggle, onDelete, isSelectMode, isSelec
           >
             {cardContent}
           </a>
+        ) : !isSelectMode && onEdit ? (
+          <div
+            className="flex gap-3 flex-1 min-w-0 cursor-pointer"
+            onClick={(e) => { if (swipeX === 0) { e.stopPropagation(); onEdit() } }}
+          >
+            {cardContent}
+          </div>
         ) : (
           <div className="flex gap-3 flex-1 min-w-0">{cardContent}</div>
         )}

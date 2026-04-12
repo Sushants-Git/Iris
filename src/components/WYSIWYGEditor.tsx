@@ -1,8 +1,26 @@
 import { useEffect } from 'react'
-import { useEditor, EditorContent } from '@tiptap/react'
+import { useEditor, EditorContent, ReactNodeViewRenderer } from '@tiptap/react'
 import StarterKit from '@tiptap/starter-kit'
 import { Markdown } from 'tiptap-markdown'
+import { CodeBlockLowlight } from '@tiptap/extension-code-block-lowlight'
+import { createLowlight } from 'lowlight'
+import { CodeBlockView } from './CodeBlockView'
+import javascript from 'highlight.js/lib/languages/javascript'
+import typescript from 'highlight.js/lib/languages/typescript'
+import go from 'highlight.js/lib/languages/go'
+import rust from 'highlight.js/lib/languages/rust'
+import lua from 'highlight.js/lib/languages/lua'
 import { cn } from '@/lib/utils'
+
+const lowlight = createLowlight()
+lowlight.register('javascript', javascript)
+lowlight.register('js', javascript)
+lowlight.register('typescript', typescript)
+lowlight.register('ts', typescript)
+lowlight.register('go', go)
+lowlight.register('rust', rust)
+lowlight.register('rs', rust)
+lowlight.register('lua', lua)
 
 interface Props {
   value: string
@@ -20,7 +38,10 @@ function getMarkdown(editor: any): string {
 export function WYSIWYGEditor({ value, onChange, placeholder, className, autoFocus }: Props) {
   const editor = useEditor({
     extensions: [
-      StarterKit,
+      StarterKit.configure({ codeBlock: false }),
+      CodeBlockLowlight.extend({
+        addNodeView() { return ReactNodeViewRenderer(CodeBlockView) },
+      }).configure({ lowlight }),
       Markdown.configure({
         html: false,
         transformPastedText: true,

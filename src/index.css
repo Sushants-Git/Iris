@@ -251,8 +251,110 @@ button, a, [role="button"] {
 .wysiwyg-editor strong { font-weight: 600; }
 .wysiwyg-editor em { font-style: italic; }
 .wysiwyg-editor code { font-family: monospace; font-size: 0.875em; background: var(--muted); padding: 0.1em 0.35em; border-radius: 4px; }
-.wysiwyg-editor pre { background: var(--muted); padding: 0.75em 1em; border-radius: 8px; overflow-x: auto; margin: 0.5em 0; }
-.wysiwyg-editor pre code { background: none; padding: 0; }
+/* ── T3-style code block ─────────────────────────────────────────────── */
+.t3-code-block {
+  margin: 0.75em 0;
+  border-radius: 10px;
+  overflow: hidden;
+  background: #f4e8f6;
+  border: 1px solid rgba(180, 110, 190, 0.18);
+  box-shadow: 0 1px 4px rgba(160, 80, 180, 0.07);
+}
+
+.t3-code-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 7px 14px;
+  background: #ede0f0;
+  border-bottom: 1px solid rgba(180, 110, 190, 0.15);
+  user-select: none;
+}
+
+.t3-code-lang {
+  font-family: 'JetBrains Mono', ui-monospace, monospace;
+  font-size: 11.5px;
+  font-weight: 500;
+  letter-spacing: 0.02em;
+  color: #9e4faa;
+}
+
+.t3-code-copy {
+  display: flex;
+  align-items: center;
+  padding: 3px 5px;
+  border-radius: 5px;
+  color: #9e4faa;
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  transition: color 0.12s, background 0.12s;
+}
+.t3-code-copy:hover { background: rgba(158, 79, 170, 0.12); color: #7b2d94; }
+
+.t3-code-block pre {
+  margin: 0;
+  padding: 14px 16px;
+  background: transparent;
+  overflow-x: auto;
+  font-family: 'JetBrains Mono', ui-monospace, monospace;
+  font-size: 13px;
+  line-height: 1.75;
+  color: #3a1848;
+  border: none !important;
+  border-radius: 0 !important;
+}
+
+.t3-code-block pre > div {
+  display: inline;
+  white-space: pre;
+  font-family: inherit;
+  font-size: inherit;
+}
+
+/* ── T3 pink/lavender syntax tokens — dark on light ─────────────────── */
+.t3-code-block .hljs-comment,
+.t3-code-block .hljs-quote              { color: #a888b8; font-style: italic; }
+
+.t3-code-block .hljs-keyword,
+.t3-code-block .hljs-selector-tag,
+.t3-code-block .hljs-built_in,
+.t3-code-block .hljs-meta               { color: #8b1a6b; font-weight: 600; }
+
+.t3-code-block .hljs-string,
+.t3-code-block .hljs-attr,
+.t3-code-block .hljs-template-tag       { color: #b03060; }
+
+.t3-code-block .hljs-number,
+.t3-code-block .hljs-literal            { color: #a02858; }
+
+.t3-code-block .hljs-title,
+.t3-code-block .hljs-title.class_,
+.t3-code-block .hljs-title.function_    { color: #6b2090; }
+
+.t3-code-block .hljs-type,
+.t3-code-block .hljs-class .hljs-title,
+.t3-code-block .hljs-variable.language_ { color: #7830a8; }
+
+.t3-code-block .hljs-params             { color: #5a1870; }
+.t3-code-block .hljs-variable           { color: #3a1848; }
+.t3-code-block .hljs-operator,
+.t3-code-block .hljs-punctuation        { color: #9060a8; }
+
+/* ── Inline code — light pink pill ──────────────────────────────────── */
+.wysiwyg-editor code {
+  font-family: 'JetBrains Mono', ui-monospace, monospace;
+  font-size: 0.85em;
+  background: #f0e2f5;
+  color: #8b2a90;
+  padding: 0.1em 0.4em;
+  border-radius: 5px;
+  border: none;
+}
+
+/* pre/code outside of .t3-code-block (fallback) */
+.wysiwyg-editor pre { background: #f4e8f6; border: 1px solid rgba(180,110,190,0.18); padding: 0.75em 1em; border-radius: 8px; overflow-x: auto; margin: 0.5em 0; font-family: 'JetBrains Mono', monospace; font-size: 0.875em; }
+.wysiwyg-editor pre code { background: none; padding: 0; color: inherit; border: none; }
 .wysiwyg-editor blockquote { border-left: 3px solid var(--border); margin: 0.5em 0; padding-left: 0.75em; color: var(--muted-foreground); }
 .wysiwyg-editor a { color: var(--primary); text-decoration: underline; }
 .wysiwyg-editor hr { border: none; border-top: 1px solid var(--border); margin: 0.75em 0; }

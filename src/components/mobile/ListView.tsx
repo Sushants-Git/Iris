@@ -4,6 +4,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { ListItem } from './ListItem'
 import { AddItemModal } from '@/components/modals/AddItemModal'
+import { EditCardModal } from '@/components/modals/EditCardModal'
 import { isImageUrl } from '@/lib/utils'
 import { getTitle } from '@/types'
 import type { Item, Status } from '@/types'
@@ -122,6 +123,7 @@ function SubcategorySection({
   onDelete,
   onDeleteHeader,
   onRenameHeader,
+  onEditItem,
 }: {
   header: Item
   groupItems: Item[]
@@ -132,6 +134,7 @@ function SubcategorySection({
   onDelete: (id: string) => void
   onDeleteHeader: () => void
   onRenameHeader: (newName: string) => void
+  onEditItem: (item: Item) => void
 }) {
   const [renaming, setRenaming] = useState(false)
   const [renameValue, setRenameValue] = useState('')
@@ -212,6 +215,7 @@ function SubcategorySection({
               item={item}
               onStatusToggle={(status) => onStatusToggle(item.id, status)}
               onDelete={() => onDelete(item.id)}
+              onEdit={() => onEditItem(item)}
               isSelectMode={isSelectMode}
               isSelected={selectedIds.has(item.id)}
               onToggleSelect={() => onToggleSelect(item.id)}
@@ -236,6 +240,7 @@ export function ListView({
   const [query, setQuery] = useState('')
   const [isSelectMode, setIsSelectMode] = useState(false)
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
+  const [editItem, setEditItem] = useState<Item | null>(null)
 
   const statusOrder = { in_progress: 0, pending: 1, done: 2 }
 
@@ -409,6 +414,7 @@ export function ListView({
             onDelete={onDelete}
             onDeleteHeader={() => onDelete(header.id)}
             onRenameHeader={(newName) => handleRenameHeader(header.id, getTitle(header), newName)}
+            onEditItem={setEditItem}
           />
         ))}
 
@@ -419,6 +425,7 @@ export function ListView({
             item={item}
             onStatusToggle={(status) => onStatusToggle(item.id, status)}
             onDelete={() => onDelete(item.id)}
+            onEdit={() => setEditItem(item)}
             isSelectMode={isSelectMode}
             isSelected={selectedIds.has(item.id)}
             onToggleSelect={() => toggleSelect(item.id)}
@@ -461,6 +468,18 @@ export function ListView({
         onAdd={onCreateItem}
         subcategoryNames={subcategoryNames}
       />
+
+      {editItem && (
+        <EditCardModal
+          item={editItem}
+          open={!!editItem}
+          onOpenChange={(v) => { if (!v) setEditItem(null) }}
+          onSave={(payload) => {
+            onUpdateItem(editItem.id, payload)
+            setEditItem(null)
+          }}
+        />
+      )}
     </div>
   )
 }

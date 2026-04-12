@@ -9,8 +9,8 @@ interface Props {
 
 const STATUS_CONFIG: Record<Status, { label: string; dot: string; chip: string }> = {
   pending:     { label: 'Pending',     dot: 'bg-muted-foreground/30', chip: 'bg-transparent text-muted-foreground/60 border-transparent' },
-  in_progress: { label: 'In Progress', dot: 'bg-primary',             chip: 'bg-primary/10 text-primary border-primary/20 dark:bg-primary/20 dark:text-primary dark:border-primary/30' },
-  done:        { label: 'Done',        dot: 'bg-teal-500',            chip: 'bg-teal-50 text-teal-700 border-teal-200 dark:bg-teal-950/40 dark:text-teal-400 dark:border-teal-800/50' },
+  in_progress: { label: 'In Progress', dot: 'bg-primary',             chip: 'bg-primary/10 text-primary border-transparent' },
+  done:        { label: 'Done',        dot: 'bg-teal-500',            chip: 'bg-teal-50 text-teal-700 border-transparent dark:bg-teal-950/40 dark:text-teal-400' },
 }
 
 export function CardStatusBadge({ status, onChange }: Props) {
