@@ -79,7 +79,7 @@ export function NoteModal(props: Props) {
 
   return (
     <div
-      className="fixed inset-y-0 left-0 bg-background border-r border-border flex flex-col"
+      className="fixed inset-y-0 left-0 bg-background flex flex-col"
       style={{ right: '24rem', zIndex: 60 }}
     >
       {/* Header */}
