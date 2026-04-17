@@ -10,11 +10,18 @@ export interface StandaloneNote {
 }
 export type WorkStatus = 'active' | 'paused' | 'done'
 
+export interface TaskReference {
+  title: string
+  url: string
+}
+
 export interface Task {
   id: string
   title: string
   tag: WorkTag
   url?: string
+  details?: string
+  references?: TaskReference[]
   createdAt: string
 }
 

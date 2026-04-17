@@ -107,7 +107,13 @@ export function CommandSearch({ items, onSelect, onClose }: Props) {
                   />
                 ) : (
                   <span
-                    className={`w-2 h-2 rounded-full shrink-0 ${item.status === 'done' ? 'bg-emerald-500' : 'bg-amber-400'}`}
+                    className={`w-2 h-2 rounded-full shrink-0 ${
+                      item.status === 'done'
+                        ? 'bg-teal-500'
+                        : item.status === 'in_progress'
+                          ? 'bg-primary'
+                          : 'bg-muted-foreground/30'
+                    }`}
                   />
                 )}
                 <span className="text-sm truncate">{getTitle(item)}</span>

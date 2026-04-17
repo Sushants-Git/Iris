@@ -134,12 +134,31 @@ export const workLogApi = {
 
 // ─── Tasks ────────────────────────────────────────────────────────────────────
 
-export type TaskPayload = { id: string; title: string; tag: string; url?: string; createdAt: string }
+export type TaskReferencePayload = { title: string; url: string }
+export type TaskPayload = {
+  id: string
+  title: string
+  tag: string
+  url?: string
+  details?: string | null
+  references?: TaskReferencePayload[]
+  createdAt: string
+}
+
+export type UpdateTaskPayload = {
+  title?: string
+  tag?: 'work' | 'personal'
+  url?: string | null
+  details?: string | null
+  references?: TaskReferencePayload[]
+}
 
 export const tasksApi = {
   list: () => request<TaskPayload[]>('/tasks'),
   add: (task: TaskPayload) =>
     request<{ ok: boolean }>('/tasks', { method: 'POST', body: JSON.stringify(task) }),
+  update: (id: string, patch: UpdateTaskPayload) =>
+    request<{ ok: boolean }>(`/tasks/${id}`, { method: 'PATCH', body: JSON.stringify(patch) }),
   delete: (id: string) =>
     request<{ ok: boolean }>(`/tasks/${id}`, { method: 'DELETE' }),
 }
@@ -156,6 +175,21 @@ export const standaloneNotesApi = {
     request<{ ok: boolean }>(`/notes/${id}`, { method: 'PATCH', body: JSON.stringify(patch) }),
   delete: (id: string) =>
     request<{ ok: boolean }>(`/notes/${id}`, { method: 'DELETE' }),
+}
+
+// ─── AI ───────────────────────────────────────────────────────────────────────
+
+export type AIParsedResult = {
+  links: { url: string; title: string }[]
+  tasks: { title: string; url: string | null }[]
+}
+
+export const aiApi = {
+  parse: (text: string) =>
+    request<AIParsedResult>('/ai/parse', {
+      method: 'POST',
+      body: JSON.stringify({ text }),
+    }),
 }
 
 // ─── Preview ──────────────────────────────────────────────────────────────────

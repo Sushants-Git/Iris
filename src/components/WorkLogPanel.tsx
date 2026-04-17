@@ -2,12 +2,14 @@ import { useState, useEffect, useRef } from 'react'
 import {
   X, Play, Pause, Square, Trash2, Clock,
   Briefcase, User, ChevronDown, FileText,
-  ListChecks, Link, ExternalLink, Plus, StickyNote,
+  ListChecks, Link, ExternalLink, Plus, StickyNote, Pencil,
+  Paperclip,
 } from 'lucide-react'
 import { useWorkLog, getActiveMs, formatDuration } from '@/hooks/useWorkLog'
 import { useTaskList } from '@/hooks/useTaskList'
 import { useStandaloneNotes } from '@/hooks/useStandaloneNotes'
 import { NoteModal } from './NoteModal'
+import { TaskEditModal } from './TaskEditModal'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { cn } from '@/lib/utils'
@@ -294,22 +296,48 @@ function AddTaskForm({ onAdd }: { onAdd: (title: string, tag: WorkTag, url?: str
 
 // ── Task row ─────────────────────────────────────────────────────────────────
 
-function TaskRow({ task, onRemove, onStart }: { task: Task; onRemove: () => void; onStart: () => void }) {
+function TaskRow({ task, onRemove, onStart, onEdit }: {
+  task: Task; onRemove: () => void; onStart: () => void; onEdit: () => void
+}) {
   const hasUrl = !!task.url
+  const refCount = task.references?.length ?? 0
+  const hasDetails = !!task.details?.trim()
+  const hasEnrichment = refCount > 0 || hasDetails
   return (
     <div className={cn('flex items-center gap-2.5 px-3 py-2.5 rounded-xl group transition-colors', hasUrl ? 'bg-accent/60 hover:bg-accent' : 'hover:bg-muted/60')}>
       <span className={cn('w-2 h-2 rounded-full shrink-0 mt-0.5', tagDot(task.tag ?? 'work'))} />
       <div className="flex-1 min-w-0">
         <p className="text-sm font-medium leading-snug truncate text-foreground">{task.title}</p>
-        {hasUrl && (
-          <a href={task.url} target="_blank" rel="noopener noreferrer" onClick={(e) => e.stopPropagation()} className="inline-flex items-center gap-1 text-xs text-primary/70 hover:text-primary hover:underline">
-            <ExternalLink className="w-3 h-3 shrink-0" />{hostname(task.url!)}
-          </a>
-        )}
+        <div className="flex items-center gap-2 flex-wrap">
+          {hasUrl && (
+            <a href={task.url} target="_blank" rel="noopener noreferrer" onClick={(e) => e.stopPropagation()} className="inline-flex items-center gap-1 text-xs text-primary/70 hover:text-primary hover:underline">
+              <ExternalLink className="w-3 h-3 shrink-0" />{hostname(task.url!)}
+            </a>
+          )}
+          {hasEnrichment && (
+            <button
+              type="button"
+              onClick={onEdit}
+              className="inline-flex items-center gap-1 text-[11px] text-muted-foreground hover:text-foreground"
+              title="Edit details"
+            >
+              {hasDetails && <FileText className="w-3 h-3" />}
+              {refCount > 0 && (
+                <>
+                  <Paperclip className="w-3 h-3" />
+                  <span>{refCount}</span>
+                </>
+              )}
+            </button>
+          )}
+        </div>
       </div>
       <div className="flex items-center gap-1 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">
         <Button variant="ghost" size="sm" onClick={onStart} className="gap-1 px-2 py-1 rounded-lg text-xs bg-primary/10 text-primary hover:bg-primary/20 hover:text-primary h-auto">
           <Play className="w-3 h-3" /> Start
+        </Button>
+        <Button variant="ghost" size="icon-xs" onClick={onEdit} title="Edit">
+          <Pencil className="w-3.5 h-3.5" />
         </Button>
         <Button variant="ghost" size="icon-xs" onClick={onRemove} className="hover:text-destructive">
           <Trash2 className="w-3.5 h-3.5" />
@@ -353,8 +381,10 @@ function NoteRow({ title, preview, date, hasContent, tag, taskLabel, onClick, on
 
 export function WorkLogPanel({ open, onClose }: { open: boolean; onClose: () => void }) {
   const { entries, activeEntry, loading, start, pause, resume, stop, remove, updateNotes } = useWorkLog()
-  const { tasks, addTask, removeTask } = useTaskList()
+  const { tasks, addTask, removeTask, updateTask } = useTaskList()
   const { notes: standaloneNotes, addNote, updateNote, removeNote } = useStandaloneNotes()
+  const [editingTaskId, setEditingTaskId] = useState<string | null>(null)
+  const editingTask = editingTaskId ? tasks.find((t) => t.id === editingTaskId) ?? null : null
   const groups = groupByDate(entries)
 
   type Tab = 'log' | 'tasks' | 'notes'
@@ -391,11 +421,11 @@ export function WorkLogPanel({ open, onClose }: { open: boolean; onClose: () => 
 
   useEffect(() => {
     function onKeyDown(e: KeyboardEvent) {
-      if (e.key === 'Escape' && !noteTarget) onClose()
+      if (e.key === 'Escape' && !noteTarget && !editingTaskId) onClose()
     }
     if (open) window.addEventListener('keydown', onKeyDown)
     return () => window.removeEventListener('keydown', onKeyDown)
-  }, [open, onClose, noteTarget])
+  }, [open, onClose, noteTarget, editingTaskId])
 
   // Build combined notes list for the Notes tab
   const sessionNoteItems = entries
@@ -438,6 +468,13 @@ export function WorkLogPanel({ open, onClose }: { open: boolean; onClose: () => 
           tasks={tasks}
           onSave={(patch) => updateNote(standaloneNoteEntry.id, patch)}
           onClose={() => setNoteTarget(null)}
+        />
+      )}
+      {editingTask && (
+        <TaskEditModal
+          task={editingTask}
+          onSave={updateTask}
+          onClose={() => setEditingTaskId(null)}
         />
       )}
 
@@ -506,7 +543,13 @@ export function WorkLogPanel({ open, onClose }: { open: boolean; onClose: () => 
             ) : (
               <div className="px-4 pb-8 space-y-1">
                 {tasks.map((task) => (
-                  <TaskRow key={task.id} task={task} onRemove={() => removeTask(task.id)} onStart={() => handleStartFromTask(task)} />
+                  <TaskRow
+                    key={task.id}
+                    task={task}
+                    onRemove={() => removeTask(task.id)}
+                    onStart={() => handleStartFromTask(task)}
+                    onEdit={() => setEditingTaskId(task.id)}
+                  />
                 ))}
               </div>
             )}

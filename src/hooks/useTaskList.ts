@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react'
-import { tasksApi } from '@/lib/api-client'
+import { tasksApi, type UpdateTaskPayload } from '@/lib/api-client'
 import type { Task, WorkTag } from '@/types/worklog'
 
 const CACHE_KEY = 'iris_tasks'
@@ -16,75 +16,103 @@ function saveCache(tasks: Task[]) {
   localStorage.setItem(CACHE_KEY, JSON.stringify(tasks))
 }
 
-export function useTaskList() {
-  const [tasks, setTasks] = useState<Task[]>(loadCache)
-  const [loading, setLoading] = useState(true)
+// ── Module-level shared store ────────────────────────────────────────────────
+// All useTaskList() callers subscribe to the same tasks array so mutations
+// from one component (e.g. AIParseModal via Canvas) propagate to all readers
+// (e.g. WorkLogPanel) without a refresh.
 
-  // On mount: fetch from DB, migrate any local-only tasks, then use DB as truth
-  useEffect(() => {
-    let cancelled = false
-    async function sync() {
-      const local = loadCache()
-      try {
-        const remote = await tasksApi.list()
-        if (cancelled) return
+let storeTasks: Task[] = loadCache()
+let storeLoading = true
+let storeSynced = false
+const listeners = new Set<() => void>()
 
-        const remoteIds = new Set(remote.map((t) => t.id))
+function setStoreTasks(next: Task[] | ((prev: Task[]) => Task[])) {
+  storeTasks = typeof next === 'function' ? (next as (p: Task[]) => Task[])(storeTasks) : next
+  saveCache(storeTasks)
+  listeners.forEach((l) => l())
+}
 
-        // Migrate local-only tasks to DB
-        const localOnly = local.filter((t) => !remoteIds.has(t.id))
-        for (const t of localOnly) {
-          tasksApi.add(t).catch(() => {})
-        }
+function setStoreLoading(v: boolean) {
+  storeLoading = v
+  listeners.forEach((l) => l())
+}
 
-        // Merge: remote + any local-only additions, sorted by createdAt desc
-        const merged = [
-          ...localOnly,
-          ...remote.map((r) => ({
-            id: r.id,
-            title: r.title,
-            tag: (r.tag ?? 'work') as WorkTag,
-            url: r.url ?? undefined,
-            createdAt: typeof r.createdAt === 'string' ? r.createdAt : new Date(r.createdAt).toISOString(),
-          })),
-        ].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
+async function syncFromRemote() {
+  if (storeSynced) return
+  storeSynced = true
+  try {
+    const local = loadCache()
+    const remote = await tasksApi.list()
+    const remoteIds = new Set(remote.map((t) => t.id))
+    const localOnly = local.filter((t) => !remoteIds.has(t.id))
+    for (const t of localOnly) tasksApi.add(t).catch(() => {})
+    const merged = [
+      ...localOnly,
+      ...remote.map((r) => ({
+        id: r.id,
+        title: r.title,
+        tag: (r.tag ?? 'work') as WorkTag,
+        url: r.url ?? undefined,
+        details: r.details ?? undefined,
+        references: r.references ?? [],
+        createdAt: typeof r.createdAt === 'string' ? r.createdAt : new Date(r.createdAt).toISOString(),
+      })),
+    ].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
+    setStoreTasks(merged)
+  } catch {
+    // DB unavailable — stay with local cache
+  } finally {
+    setStoreLoading(false)
+  }
+}
 
-        setTasks(merged)
-        saveCache(merged)
-      } catch {
-        // DB unavailable — stay with local cache
-      } finally {
-        if (!cancelled) setLoading(false)
+function addTaskStore(title: string, tag: WorkTag, url?: string) {
+  const task: Task = {
+    id: crypto.randomUUID(),
+    title: title.trim(),
+    tag,
+    url: url?.trim() || undefined,
+    createdAt: new Date().toISOString(),
+  }
+  setStoreTasks((prev) => [task, ...prev])
+  tasksApi.add(task).catch(() => {})
+}
+
+function removeTaskStore(id: string) {
+  setStoreTasks((prev) => prev.filter((t) => t.id !== id))
+  tasksApi.delete(id).catch(() => {})
+}
+
+function updateTaskStore(id: string, patch: UpdateTaskPayload) {
+  setStoreTasks((prev) =>
+    prev.map((t) => {
+      if (t.id !== id) return t
+      return {
+        ...t,
+        ...(patch.title !== undefined ? { title: patch.title } : {}),
+        ...(patch.tag !== undefined ? { tag: patch.tag } : {}),
+        ...(patch.url !== undefined ? { url: patch.url ?? undefined } : {}),
+        ...(patch.details !== undefined ? { details: patch.details ?? undefined } : {}),
+        ...(patch.references !== undefined ? { references: patch.references } : {}),
       }
-    }
-    sync()
-    return () => { cancelled = true }
+    }),
+  )
+  tasksApi.update(id, patch).catch(() => {})
+}
+
+export function useTaskList() {
+  const [, setTick] = useState(0)
+
+  useEffect(() => {
+    const listener = () => setTick((n) => n + 1)
+    listeners.add(listener)
+    syncFromRemote()
+    return () => { listeners.delete(listener) }
   }, [])
 
-  const addTask = useCallback((title: string, tag: WorkTag, url?: string) => {
-    const task: Task = {
-      id: crypto.randomUUID(),
-      title: title.trim(),
-      tag,
-      url: url?.trim() || undefined,
-      createdAt: new Date().toISOString(),
-    }
-    setTasks((prev) => {
-      const next = [task, ...prev]
-      saveCache(next)
-      return next
-    })
-    tasksApi.add(task).catch(() => {})
-  }, [])
+  const addTask = useCallback(addTaskStore, [])
+  const removeTask = useCallback(removeTaskStore, [])
+  const updateTask = useCallback(updateTaskStore, [])
 
-  const removeTask = useCallback((id: string) => {
-    setTasks((prev) => {
-      const next = prev.filter((t) => t.id !== id)
-      saveCache(next)
-      return next
-    })
-    tasksApi.delete(id).catch(() => {})
-  }, [])
-
-  return { tasks, loading, addTask, removeTask }
+  return { tasks: storeTasks, loading: storeLoading, addTask, removeTask, updateTask }
 }

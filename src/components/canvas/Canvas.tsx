@@ -11,6 +11,8 @@ import { Minimap } from './Minimap'
 import { Button } from '@/components/ui/button'
 import { screenToCanvas, isImageUrl } from '@/lib/utils'
 import { previewApi } from '@/lib/api-client'
+import { AIParseModal } from '@/components/AIParseModal'
+import { useTaskList } from '@/hooks/useTaskList'
 import type { Item } from '@/types'
 import type { CreateItemPayload, UpdateItemPayload } from '@/lib/api-client'
 import type { CanvasTransform } from '@/hooks/useCanvas'
@@ -106,6 +108,8 @@ export function Canvas({
   const { transform, transformRef, worldRef, pan, zoom, reset, panTo, scaleTo } = useCanvas()
 
   const [addOpen, setAddOpen] = useState(false)
+  const [aiOpen, setAiOpen] = useState(false)
+  const { addTask } = useTaskList()
   const [editItem, setEditItem] = useState<Item | null>(null)
   const [pasting, setPasting] = useState(false)
   const [cmdOpen, setCmdOpen] = useState(false)
@@ -290,12 +294,16 @@ export function Canvas({
     return () => window.removeEventListener('paste', handlePaste)
   }, [onCreateItem])
 
-  // ── Cmd+K / Ctrl+K search ───────────────────────────────────────────────────
+  // ── Cmd+K search, Cmd+/ AI ──────────────────────────────────────────────────
   useEffect(() => {
     function handleKeyDown(e: KeyboardEvent) {
       if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
         e.preventDefault()
         setCmdOpen((v) => !v)
+      }
+      if ((e.metaKey || e.ctrlKey) && e.key === '/') {
+        e.preventDefault()
+        setAiOpen((v) => !v)
       }
     }
     window.addEventListener('keydown', handleKeyDown)
@@ -495,6 +503,7 @@ export function Canvas({
               ['Ctrl J', 'Sidebar'],
               ['Ctrl K', 'Search'],
               ['Ctrl I', 'Work log'],
+              ['Ctrl /', 'Add via AI'],
               ['Ctrl \\', 'Toggle list view'],
               ['M', 'Toggle minimap'],
               ['0', 'Zoom to 100%'],
@@ -551,6 +560,14 @@ export function Canvas({
           const { x, y } = getNewCardPos()
           onCreateItem({ ...payload, x, y })
         }}
+      />
+
+      <AIParseModal
+        open={aiOpen}
+        onOpenChange={setAiOpen}
+        onCreateItem={onCreateItem}
+        onCreateTask={addTask}
+        getNewCardPos={getNewCardPos}
       />
 
       {editItem && (

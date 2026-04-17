@@ -279,9 +279,21 @@ app.get('/tasks', async (c) => {
   return c.json(rows)
 })
 
+const taskReferenceSchema = z.object({
+  title: z.string(),
+  url: z.string(),
+})
+
 app.post(
   '/tasks',
-  zValidator('json', z.object({ id: z.string().min(1), title: z.string().min(1), tag: z.enum(['work', 'personal']).default('work'), url: z.string().optional() })),
+  zValidator('json', z.object({
+    id: z.string().min(1),
+    title: z.string().min(1),
+    tag: z.enum(['work', 'personal']).default('work'),
+    url: z.string().optional(),
+    details: z.string().nullable().optional(),
+    references: z.array(taskReferenceSchema).optional(),
+  })),
   async (c) => {
     const db = getDb()
     const body = c.req.valid('json')
@@ -290,8 +302,34 @@ app.post(
       title: body.title,
       tag: body.tag,
       url: body.url ?? null,
+      details: body.details ?? null,
+      references: body.references ?? [],
     }).onConflictDoNothing()
     return c.json({ ok: true }, 201)
+  },
+)
+
+app.patch(
+  '/tasks/:id',
+  zValidator('json', z.object({
+    title: z.string().min(1).optional(),
+    tag: z.enum(['work', 'personal']).optional(),
+    url: z.string().nullable().optional(),
+    details: z.string().nullable().optional(),
+    references: z.array(taskReferenceSchema).optional(),
+  })),
+  async (c) => {
+    const db = getDb()
+    const patch = c.req.valid('json')
+    const update: Record<string, unknown> = {}
+    if (patch.title !== undefined) update.title = patch.title
+    if (patch.tag !== undefined) update.tag = patch.tag
+    if (patch.url !== undefined) update.url = patch.url
+    if (patch.details !== undefined) update.details = patch.details
+    if (patch.references !== undefined) update.references = patch.references
+    if (Object.keys(update).length === 0) return c.json({ ok: true })
+    await db.update(schema.tasks).set(update).where(eq(schema.tasks.id, c.req.param('id')))
+    return c.json({ ok: true })
   },
 )
 
@@ -352,6 +390,62 @@ app.delete('/notes/:id', async (c) => {
   await db.delete(schema.standaloneNotes).where(eq(schema.standaloneNotes.id, c.req.param('id')))
   return c.json({ ok: true })
 })
+
+// ─── AI PARSE ─────────────────────────────────────────────────────────────────
+
+app.post(
+  '/ai/parse',
+  zValidator('json', z.object({ text: z.string().min(1).max(20000) })),
+  async (c) => {
+    const { text } = c.req.valid('json')
+    const apiKey = process.env.OPENAI_API_KEY
+    if (!apiKey) return c.json({ error: 'OpenAI not configured' }, 500)
+
+    const res = await fetch('https://api.openai.com/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${apiKey}`,
+      },
+      body: JSON.stringify({
+        model: 'gpt-4o-mini',
+        response_format: { type: 'json_object' },
+        messages: [
+          {
+            role: 'system',
+            content: `You extract structured data from pasted text blobs (Slack messages, emails, notes, etc).
+Return a JSON object with exactly two keys:
+- "links": array of { "url": string, "title": string } — every URL found in the text, with a short descriptive title inferred from context (e.g. "Review Frontend PR", "Backend auth changes"). Title should be concise and action-oriented if possible.
+- "tasks": array of { "title": string, "url": string | null } — actionable items for the reader to act on. Each task should have a clear verb (Review, Fix, Deploy, Read, etc). If a task is directly associated with a URL, include it.
+Only include items that are genuinely useful. Do not duplicate — if a link is already captured as a task's URL, still include it in links. Return empty arrays if nothing found.`,
+          },
+          { role: 'user', content: text },
+        ],
+      }),
+    })
+
+    if (!res.ok) {
+      const err = await res.text()
+      return c.json({ error: `OpenAI error: ${err}` }, 502)
+    }
+
+    const data = (await res.json()) as { choices: { message: { content: string } }[] }
+    const content = data.choices[0]?.message?.content ?? '{}'
+
+    try {
+      const parsed = JSON.parse(content) as {
+        links?: { url: string; title: string }[]
+        tasks?: { title: string; url: string | null }[]
+      }
+      return c.json({
+        links: parsed.links ?? [],
+        tasks: parsed.tasks ?? [],
+      })
+    } catch {
+      return c.json({ error: 'Failed to parse AI response' }, 500)
+    }
+  },
+)
 
 // ─── PREVIEW ──────────────────────────────────────────────────────────────────
 

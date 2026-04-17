@@ -1,4 +1,6 @@
-import { pgTable, uuid, text, real, timestamp, pgEnum, integer } from 'drizzle-orm/pg-core'
+import { pgTable, uuid, text, real, timestamp, pgEnum, integer, jsonb } from 'drizzle-orm/pg-core'
+
+export type TaskReference = { title: string; url: string }
 
 export const itemTypeEnum = pgEnum('item_type', ['link', 'note', 'subcategory'])
 export const statusEnum = pgEnum('status', ['pending', 'in_progress', 'done'])
@@ -62,6 +64,8 @@ export const tasks = pgTable('tasks', {
   title: text('title').notNull(),
   tag: text('tag').notNull().default('work'),  // 'work' | 'personal'
   url: text('url'),
+  details: text('details'),
+  references: jsonb('references').$type<TaskReference[]>().notNull().default([]),
   createdAt: timestamp('created_at').notNull().defaultNow(),
 })
 
