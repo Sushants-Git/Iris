@@ -66,16 +66,31 @@ async function syncFromRemote() {
   }
 }
 
-function addTaskStore(title: string, tag: WorkTag, url?: string) {
+function addTaskStore(
+  title: string,
+  tag: WorkTag,
+  url?: string,
+  extra?: { details?: string; references?: { title: string; url: string }[] },
+) {
   const task: Task = {
     id: crypto.randomUUID(),
     title: title.trim(),
     tag,
     url: url?.trim() || undefined,
+    details: extra?.details?.trim() || undefined,
+    references: extra?.references ?? [],
     createdAt: new Date().toISOString(),
   }
   setStoreTasks((prev) => [task, ...prev])
-  tasksApi.add(task).catch(() => {})
+  tasksApi.add({
+    id: task.id,
+    title: task.title,
+    tag: task.tag,
+    url: task.url,
+    details: task.details ?? null,
+    references: task.references,
+    createdAt: task.createdAt,
+  }).catch(() => {})
 }
 
 function removeTaskStore(id: string) {

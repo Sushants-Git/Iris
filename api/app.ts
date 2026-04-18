@@ -413,11 +413,12 @@ app.post(
         messages: [
           {
             role: 'system',
-            content: `You extract structured data from pasted text blobs (Slack messages, emails, notes, etc).
-Return a JSON object with exactly two keys:
-- "links": array of { "url": string, "title": string } — every URL found in the text, with a short descriptive title inferred from context (e.g. "Review Frontend PR", "Backend auth changes"). Title should be concise and action-oriented if possible.
-- "tasks": array of { "title": string, "url": string | null } — actionable items for the reader to act on. Each task should have a clear verb (Review, Fix, Deploy, Read, etc). If a task is directly associated with a URL, include it.
-Only include items that are genuinely useful. Do not duplicate — if a link is already captured as a task's URL, still include it in links. Return empty arrays if nothing found.`,
+            content: `You extract a single actionable task from pasted text blobs (Slack messages, emails, notes, etc).
+Return a JSON object with exactly these keys:
+- "title": string — concise, action-oriented task title (e.g. "Review frontend + backend PRs", "Ship auth migration"). 3-8 words ideally.
+- "details": string — a short markdown summary of context, what needs to be done, and any constraints. Keep it tight (1-5 sentences). Empty string if nothing meaningful to add.
+- "references": array of { "title": string, "url": string } — every URL found in the text, with a short descriptive label (e.g. "Frontend PR", "Design doc", "Slack thread"). Include all URLs.
+If no real task is present, still produce a best-effort title summarizing the content and include all URLs as references.`,
           },
           { role: 'user', content: text },
         ],
@@ -434,12 +435,14 @@ Only include items that are genuinely useful. Do not duplicate — if a link is 
 
     try {
       const parsed = JSON.parse(content) as {
-        links?: { url: string; title: string }[]
-        tasks?: { title: string; url: string | null }[]
+        title?: string
+        details?: string
+        references?: { title: string; url: string }[]
       }
       return c.json({
-        links: parsed.links ?? [],
-        tasks: parsed.tasks ?? [],
+        title: parsed.title ?? '',
+        details: parsed.details ?? '',
+        references: (parsed.references ?? []).filter((r) => r && r.url),
       })
     } catch {
       return c.json({ error: 'Failed to parse AI response' }, 500)

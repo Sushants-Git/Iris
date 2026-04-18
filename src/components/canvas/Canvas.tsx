@@ -565,9 +565,7 @@ export function Canvas({
       <AIParseModal
         open={aiOpen}
         onOpenChange={setAiOpen}
-        onCreateItem={onCreateItem}
         onCreateTask={addTask}
-        getNewCardPos={getNewCardPos}
       />
 
       {editItem && (

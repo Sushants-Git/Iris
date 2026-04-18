@@ -180,8 +180,9 @@ export const standaloneNotesApi = {
 // ─── AI ───────────────────────────────────────────────────────────────────────
 
 export type AIParsedResult = {
-  links: { url: string; title: string }[]
-  tasks: { title: string; url: string | null }[]
+  title: string
+  details: string
+  references: { title: string; url: string }[]
 }
 
 export const aiApi = {
