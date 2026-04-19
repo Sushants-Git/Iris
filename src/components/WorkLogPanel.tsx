@@ -2,8 +2,7 @@ import { useState, useEffect, useRef } from 'react'
 import {
   X, Play, Pause, Square, Trash2, Clock,
   Briefcase, User, ChevronDown, FileText,
-  ListChecks, Link, ExternalLink, Plus, StickyNote, Pencil,
-  Paperclip,
+  ListChecks, Link, ExternalLink, Plus, StickyNote,
 } from 'lucide-react'
 import { useWorkLog, getActiveMs, formatDuration } from '@/hooks/useWorkLog'
 import { useTaskList } from '@/hooks/useTaskList'
@@ -70,6 +69,101 @@ function TagBadge({ tag }: { tag: WorkTag }) {
 
 function hostname(url: string) {
   try { return new URL(url).hostname.replace(/^www\./, '') } catch { return url }
+}
+
+// ── Activity heatmap ─────────────────────────────────────────────────────────
+
+const HEATMAP_DAYS = 180 // ~6 months
+
+function ActivityHeatmap({ entries }: { entries: WorkEntry[] }) {
+  const today = new Date()
+  today.setHours(0, 0, 0, 0)
+
+  const dayMs = new Map<string, number>()
+  for (const e of entries) {
+    if (e.status !== 'done' || !e.endedAt) continue
+    const key = new Date(e.startedAt).toDateString()
+    const ms = Math.max(
+      0,
+      new Date(e.endedAt).getTime() - new Date(e.startedAt).getTime() - e.totalPausedMs,
+    )
+    dayMs.set(key, (dayMs.get(key) ?? 0) + ms)
+  }
+
+  // Window: today, back HEATMAP_DAYS days (inclusive). Align start to Sunday
+  // so columns are whole weeks. Final column contains today.
+  const rawStart = new Date(today)
+  rawStart.setDate(today.getDate() - (HEATMAP_DAYS - 1))
+  const start = new Date(rawStart)
+  start.setDate(rawStart.getDate() - rawStart.getDay())
+  const totalDays = Math.round((today.getTime() - start.getTime()) / 86_400_000) + 1
+  const weeks = Math.ceil(totalDays / 7)
+
+  const columns: Array<Array<{ date: Date; ms: number }>> = []
+  for (let w = 0; w < weeks; w++) {
+    const col: Array<{ date: Date; ms: number }> = []
+    for (let d = 0; d < 7; d++) {
+      const date = new Date(start)
+      date.setDate(start.getDate() + w * 7 + d)
+      col.push({ date, ms: dayMs.get(date.toDateString()) ?? 0 })
+    }
+    columns.push(col)
+  }
+
+  const HOUR = 60 * 60_000
+  function level(ms: number): 0 | 1 | 2 | 3 | 4 {
+    if (ms <= 0) return 0
+    if (ms > 6 * HOUR) return 4
+    if (ms > 4 * HOUR) return 3
+    if (ms > 2 * HOUR) return 2
+    return 1
+  }
+  const levelClass: Record<0 | 1 | 2 | 3 | 4, string> = {
+    0: 'bg-foreground/[0.04] dark:bg-foreground/[0.07]',
+    1: 'bg-primary/25',
+    2: 'bg-primary/45',
+    3: 'bg-primary/70',
+    4: 'bg-primary',
+  }
+
+  const total = [...dayMs.values()].reduce((s, v) => s + v, 0)
+  const activeDays = [...dayMs.values()].filter((v) => v > 0).length
+
+  return (
+    <div className="px-4 py-3">
+      <div className="flex gap-[2px] overflow-x-auto pb-0.5">
+        {columns.map((col, i) => (
+          <div key={i} className="flex flex-col gap-[2px] shrink-0">
+            {col.map(({ date, ms }, d) => {
+              const future = date.getTime() > today.getTime()
+              return (
+                <div
+                  key={d}
+                  title={future ? '' : `${date.toLocaleDateString()} — ${formatDuration(ms)}`}
+                  className={cn(
+                    'w-[10px] h-[10px] rounded-[2px]',
+                    future ? 'bg-transparent' : levelClass[level(ms)],
+                  )}
+                />
+              )
+            })}
+          </div>
+        ))}
+      </div>
+      <div className="flex items-center justify-between gap-2 mt-2 text-[10px] text-muted-foreground">
+        <p className="tabular-nums">
+          {activeDays} day{activeDays === 1 ? '' : 's'} · {formatDuration(total)}
+        </p>
+        <div className="flex items-center gap-1">
+          <span>less</span>
+          {([0, 1, 2, 3, 4] as const).map((l) => (
+            <span key={l} className={cn('w-[10px] h-[10px] rounded-[2px]', levelClass[l])} />
+          ))}
+          <span>more</span>
+        </div>
+      </div>
+    </div>
+  )
 }
 
 // ── Day totals ───────────────────────────────────────────────────────────────
@@ -301,45 +395,58 @@ function TaskRow({ task, onRemove, onStart, onEdit }: {
 }) {
   const hasUrl = !!task.url
   const refCount = task.references?.length ?? 0
-  const hasDetails = !!task.details?.trim()
-  const hasEnrichment = refCount > 0 || hasDetails
+  const detailsPreview = task.details?.replace(/\s+/g, ' ').trim().slice(0, 90) ?? ''
+  const tag = task.tag ?? 'work'
+  const meta: string[] = [tag]
+  if (refCount > 0) meta.push(`${refCount} link${refCount === 1 ? '' : 's'}`)
+  meta.push(new Date(task.createdAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }))
   return (
-    <div className={cn('flex items-center gap-2.5 px-3 py-2.5 rounded-xl group transition-colors', hasUrl ? 'bg-accent/60 hover:bg-accent' : 'hover:bg-muted/60')}>
-      <span className={cn('w-2 h-2 rounded-full shrink-0 mt-0.5', tagDot(task.tag ?? 'work'))} />
-      <div className="flex-1 min-w-0">
+    <div
+      onClick={onEdit}
+      className={cn(
+        'flex items-center gap-2.5 px-3 py-2.5 rounded-xl group transition-colors cursor-pointer select-none',
+        hasUrl ? 'bg-accent/60 hover:bg-accent' : 'hover:bg-muted/60',
+      )}
+    >
+      <div className="flex-1 min-w-0 space-y-1">
         <p className="text-sm font-medium leading-snug truncate text-foreground">{task.title}</p>
-        <div className="flex items-center gap-2 flex-wrap">
+        {detailsPreview && (
+          <p className="text-xs text-muted-foreground line-clamp-1">{detailsPreview}</p>
+        )}
+        <div className="flex items-center gap-2 flex-wrap text-[11px] text-muted-foreground/80">
           {hasUrl && (
-            <a href={task.url} target="_blank" rel="noopener noreferrer" onClick={(e) => e.stopPropagation()} className="inline-flex items-center gap-1 text-xs text-primary/70 hover:text-primary hover:underline">
+            <a
+              href={task.url}
+              target="_blank"
+              rel="noopener noreferrer"
+              onClick={(e) => e.stopPropagation()}
+              className="inline-flex items-center gap-1 text-primary/70 hover:text-primary hover:underline"
+            >
               <ExternalLink className="w-3 h-3 shrink-0" />{hostname(task.url!)}
             </a>
           )}
-          {hasEnrichment && (
-            <button
-              type="button"
-              onClick={onEdit}
-              className="inline-flex items-center gap-1 text-[11px] text-muted-foreground hover:text-foreground"
-              title="Edit details"
-            >
-              {hasDetails && <FileText className="w-3 h-3" />}
-              {refCount > 0 && (
-                <>
-                  <Paperclip className="w-3 h-3" />
-                  <span>{refCount}</span>
-                </>
-              )}
-            </button>
-          )}
+          {meta.map((m, i) => (
+            <span key={i} className="inline-flex items-center gap-2">
+              {(i > 0 || hasUrl) && <span className="w-0.5 h-0.5 rounded-full bg-muted-foreground/50" />}
+              <span className={cn(i === 0 && 'capitalize')}>{m}</span>
+            </span>
+          ))}
         </div>
       </div>
       <div className="flex items-center gap-1 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">
-        <Button variant="ghost" size="sm" onClick={onStart} className="gap-1 px-2 py-1 rounded-lg text-xs bg-primary/10 text-primary hover:bg-primary/20 hover:text-primary h-auto">
-          <Play className="w-3 h-3" /> Start
-        </Button>
-        <Button variant="ghost" size="icon-xs" onClick={onEdit} title="Edit">
-          <Pencil className="w-3.5 h-3.5" />
-        </Button>
-        <Button variant="ghost" size="icon-xs" onClick={onRemove} className="hover:text-destructive">
+        <button
+          type="button"
+          onClick={(e) => { e.stopPropagation(); onStart() }}
+          className="text-xs text-primary hover:text-primary/80 px-1.5 py-1 rounded-md"
+        >
+          Start
+        </button>
+        <Button
+          variant="ghost"
+          size="icon-xs"
+          onClick={(e) => { e.stopPropagation(); onRemove() }}
+          className="hover:text-destructive"
+        >
           <Trash2 className="w-3.5 h-3.5" />
         </Button>
       </div>
@@ -355,7 +462,7 @@ function NoteRow({ title, preview, date, hasContent, tag, taskLabel, onClick, on
   onClick: () => void; onDelete: () => void
 }) {
   return (
-    <div className="group flex items-start gap-2.5 px-3 py-2.5 rounded-xl hover:bg-muted/60 transition-colors cursor-pointer" onClick={onClick}>
+    <div className="group flex items-start gap-2.5 px-3 py-2.5 rounded-xl hover:bg-muted/60 transition-colors cursor-pointer select-none" onClick={onClick}>
       <FileText className={cn('w-4 h-4 shrink-0 mt-0.5', hasContent ? 'text-primary' : 'text-muted-foreground/50')} />
       <div className="flex-1 min-w-0">
         <div className="flex items-center gap-2 mb-0.5">
@@ -489,7 +596,7 @@ export function WorkLogPanel({ open, onClose }: { open: boolean; onClose: () => 
         <div className="flex items-center px-4 border-b border-border shrink-0 gap-2 h-14">
           <div className="flex items-center gap-1 flex-1">
             {TAB_BTN('log', <Clock className="w-3.5 h-3.5" />, 'Log')}
-            {TAB_BTN('tasks', <ListChecks className="w-3.5 h-3.5" />, 'Tasks', tasks.length)}
+            {TAB_BTN('tasks', <ListChecks className="w-3.5 h-3.5" />, 'Tasks')}
             {TAB_BTN('notes', <StickyNote className="w-3.5 h-3.5" />, 'Notes')}
           </div>
           <Button variant="ghost" size="icon-sm" onClick={onClose}>
@@ -499,7 +606,8 @@ export function WorkLogPanel({ open, onClose }: { open: boolean; onClose: () => 
 
         {/* ── Log tab ── */}
         {tab === 'log' && (
-          <div className="flex-1 overflow-y-auto">
+          <div className="flex-1 min-h-0 flex flex-col">
+          <div className="flex-1 overflow-y-auto min-h-0">
             {activeEntry && (
               <div className="pt-4">
                 <ActiveCard
@@ -517,7 +625,7 @@ export function WorkLogPanel({ open, onClose }: { open: boolean; onClose: () => 
             </div>
             {loading && <p className="px-4 text-xs text-muted-foreground animate-pulse">Loading history…</p>}
             {!loading && groups.length > 0 && (
-              <div className="px-4 pb-8">
+              <div className="px-4 pb-4">
                 <p className="text-[11px] font-semibold text-muted-foreground uppercase tracking-widest mb-3">History</p>
                 <div className="space-y-3">
                   {groups.map(([date, dateEntries]) => (
@@ -527,6 +635,10 @@ export function WorkLogPanel({ open, onClose }: { open: boolean; onClose: () => 
                 </div>
               </div>
             )}
+          </div>
+          <div className="shrink-0 border-t border-border bg-background">
+            <ActivityHeatmap entries={entries} />
+          </div>
           </div>
         )}
 
@@ -604,7 +716,13 @@ export function WorkLogPanel({ open, onClose }: { open: boolean; onClose: () => 
                         date={new Date(entry.startedAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
                         hasContent={!!entry.notes?.trim()}
                         tag={entry.tag}
-                        onClick={() => setNoteTarget({ kind: 'session', entryId: entry.id })}
+                        onClick={() =>
+                          setNoteTarget((prev) =>
+                            prev?.kind === 'session' && prev.entryId === entry.id
+                              ? null
+                              : { kind: 'session', entryId: entry.id },
+                          )
+                        }
                         onDelete={() => remove(entry.id)}
                       />
                     ))}

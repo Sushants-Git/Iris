@@ -2,53 +2,37 @@ import { useState, useEffect, useCallback } from 'react'
 import { tasksApi, type UpdateTaskPayload } from '@/lib/api-client'
 import type { Task, WorkTag } from '@/types/worklog'
 
-const CACHE_KEY = 'iris_tasks'
-
-function loadCache(): Task[] {
-  try {
-    return JSON.parse(localStorage.getItem(CACHE_KEY) ?? '[]')
-  } catch {
-    return []
-  }
-}
-
-function saveCache(tasks: Task[]) {
-  localStorage.setItem(CACHE_KEY, JSON.stringify(tasks))
-}
-
 // ── Module-level shared store ────────────────────────────────────────────────
-// All useTaskList() callers subscribe to the same tasks array so mutations
+// Tasks are the DB's source of truth. We keep an in-memory mirror so mutations
 // from one component (e.g. AIParseModal via Canvas) propagate to all readers
-// (e.g. WorkLogPanel) without a refresh.
+// (e.g. WorkLogPanel) without a refetch. No localStorage persistence.
 
-let storeTasks: Task[] = loadCache()
+let storeTasks: Task[] = []
 let storeLoading = true
-let storeSynced = false
+let storeLoaded = false
 const listeners = new Set<() => void>()
+
+function emit() {
+  listeners.forEach((l) => l())
+}
 
 function setStoreTasks(next: Task[] | ((prev: Task[]) => Task[])) {
   storeTasks = typeof next === 'function' ? (next as (p: Task[]) => Task[])(storeTasks) : next
-  saveCache(storeTasks)
-  listeners.forEach((l) => l())
+  emit()
 }
 
 function setStoreLoading(v: boolean) {
   storeLoading = v
-  listeners.forEach((l) => l())
+  emit()
 }
 
-async function syncFromRemote() {
-  if (storeSynced) return
-  storeSynced = true
+async function loadFromRemote() {
+  if (storeLoaded) return
+  storeLoaded = true
   try {
-    const local = loadCache()
     const remote = await tasksApi.list()
-    const remoteIds = new Set(remote.map((t) => t.id))
-    const localOnly = local.filter((t) => !remoteIds.has(t.id))
-    for (const t of localOnly) tasksApi.add(t).catch(() => {})
-    const merged = [
-      ...localOnly,
-      ...remote.map((r) => ({
+    const tasks: Task[] = remote
+      .map((r) => ({
         id: r.id,
         title: r.title,
         tag: (r.tag ?? 'work') as WorkTag,
@@ -56,11 +40,11 @@ async function syncFromRemote() {
         details: r.details ?? undefined,
         references: r.references ?? [],
         createdAt: typeof r.createdAt === 'string' ? r.createdAt : new Date(r.createdAt).toISOString(),
-      })),
-    ].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
-    setStoreTasks(merged)
+      }))
+      .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
+    setStoreTasks(tasks)
   } catch {
-    // DB unavailable — stay with local cache
+    // DB unavailable — leave store empty; caller sees loading=false with 0 tasks
   } finally {
     setStoreLoading(false)
   }
@@ -82,25 +66,33 @@ function addTaskStore(
     createdAt: new Date().toISOString(),
   }
   setStoreTasks((prev) => [task, ...prev])
-  tasksApi.add({
-    id: task.id,
-    title: task.title,
-    tag: task.tag,
-    url: task.url,
-    details: task.details ?? null,
-    references: task.references,
-    createdAt: task.createdAt,
-  }).catch(() => {})
+  tasksApi
+    .add({
+      id: task.id,
+      title: task.title,
+      tag: task.tag,
+      url: task.url,
+      details: task.details ?? null,
+      references: task.references,
+      createdAt: task.createdAt,
+    })
+    .catch(() => {
+      setStoreTasks((prev) => prev.filter((t) => t.id !== task.id))
+    })
 }
 
 function removeTaskStore(id: string) {
-  setStoreTasks((prev) => prev.filter((t) => t.id !== id))
-  tasksApi.delete(id).catch(() => {})
+  const prev = storeTasks
+  setStoreTasks((ts) => ts.filter((t) => t.id !== id))
+  tasksApi.delete(id).catch(() => {
+    setStoreTasks(prev)
+  })
 }
 
 function updateTaskStore(id: string, patch: UpdateTaskPayload) {
-  setStoreTasks((prev) =>
-    prev.map((t) => {
+  const prev = storeTasks
+  setStoreTasks((ts) =>
+    ts.map((t) => {
       if (t.id !== id) return t
       return {
         ...t,
@@ -112,7 +104,9 @@ function updateTaskStore(id: string, patch: UpdateTaskPayload) {
       }
     }),
   )
-  tasksApi.update(id, patch).catch(() => {})
+  tasksApi.update(id, patch).catch(() => {
+    setStoreTasks(prev)
+  })
 }
 
 export function useTaskList() {
@@ -121,7 +115,7 @@ export function useTaskList() {
   useEffect(() => {
     const listener = () => setTick((n) => n + 1)
     listeners.add(listener)
-    syncFromRemote()
+    loadFromRemote()
     return () => { listeners.delete(listener) }
   }, [])
 

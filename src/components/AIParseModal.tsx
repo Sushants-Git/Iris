@@ -1,6 +1,9 @@
 import { useState, useRef, useEffect } from 'react'
 import { createPortal } from 'react-dom'
-import { Sparkles, Loader2, X, ArrowLeft, Plus, Trash2, ExternalLink, Briefcase, User } from 'lucide-react'
+import {
+  Sparkles, Loader2, X, ArrowLeft, Plus, Trash2, ExternalLink,
+  Briefcase, User,
+} from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { aiApi, type AIParsedResult } from '@/lib/api-client'
@@ -31,13 +34,14 @@ export function AIParseModal({ open, onOpenChange, onCreateTask }: Props) {
   const [references, setReferences] = useState<TaskReference[]>([])
 
   const textareaRef = useRef<HTMLTextAreaElement>(null)
+  const titleRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
     if (!open) return
     function onKey(e: KeyboardEvent) {
       if (e.key === 'Escape') handleClose()
       if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') {
-        if (parsed) handleAdd()
+        if (parsed) handleCreate()
         else handleParse()
       }
     }
@@ -47,22 +51,25 @@ export function AIParseModal({ open, onOpenChange, onCreateTask }: Props) {
   }, [open, parsed, text, title, tag, details, references])
 
   useEffect(() => {
-    if (open) setTimeout(() => textareaRef.current?.focus(), 50)
-  }, [open])
+    if (!open) return
+    if (parsed) setTimeout(() => titleRef.current?.focus(), 50)
+    else setTimeout(() => textareaRef.current?.focus(), 50)
+  }, [open, parsed])
 
   if (!open) return null
 
   async function handleParse() {
-    if (!text.trim()) return
+    const full = text.trim()
+    if (!full) return
     setLoading(true)
     setError(null)
-    setParsed(null)
     try {
-      const res = await aiApi.parse(text.trim())
+      const res = await aiApi.parse(full)
       setParsed(res)
-      setTitle(res.title || 'Untitled task')
-      setDetails(res.details || '')
-      setReferences(res.references || [])
+      setTitle(res.title?.trim() || firstLine(full))
+      setTag(res.tag === 'personal' ? 'personal' : 'work')
+      setDetails(res.details?.trim() || '')
+      setReferences((res.references ?? []).filter((r) => r.url?.trim()))
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Something went wrong')
     } finally {
@@ -70,7 +77,7 @@ export function AIParseModal({ open, onOpenChange, onCreateTask }: Props) {
     }
   }
 
-  function handleAdd() {
+  function handleCreate() {
     if (!title.trim()) return
     const cleaned = references.filter((r) => r.url.trim())
     onCreateTask(title.trim(), tag, undefined, {
@@ -86,9 +93,9 @@ export function AIParseModal({ open, onOpenChange, onCreateTask }: Props) {
     setParsed(null)
     setError(null)
     setTitle('')
+    setTag('work')
     setDetails('')
     setReferences([])
-    setTag('work')
   }
 
   function updateRef(i: number, patch: Partial<TaskReference>) {
@@ -118,9 +125,11 @@ export function AIParseModal({ open, onOpenChange, onCreateTask }: Props) {
             <Sparkles className="w-3.5 h-3.5 text-primary" />
           </div>
           <div className="flex flex-col">
-            <span className="font-semibold text-sm leading-tight">Add via AI</span>
+            <span className="font-semibold text-sm leading-tight">
+              {parsed ? 'Edit task' : 'Add via AI'}
+            </span>
             <span className="text-[11px] text-muted-foreground leading-tight">
-              {parsed ? 'Review and save as one task' : 'Turn a text blob into a task'}
+              {parsed ? 'Review, tweak, and save' : 'Paste anything — AI builds a single task'}
             </span>
           </div>
           <button
@@ -140,12 +149,12 @@ export function AIParseModal({ open, onOpenChange, onCreateTask }: Props) {
                 value={text}
                 onChange={(e) => setText(e.target.value)}
                 placeholder="Paste a Slack thread, email, or notes here…"
-                rows={8}
+                rows={10}
                 className="w-full text-sm bg-muted/30 border border-border rounded-xl px-4 py-3 resize-none focus:outline-none focus:ring-2 focus:ring-ring/40 focus:border-ring/60 placeholder:text-muted-foreground/60 leading-relaxed transition-shadow"
               />
               <div className="flex items-center justify-between mt-2 px-0.5">
                 <p className="text-[11px] text-muted-foreground">
-                  {text.length > 0 ? `${text.length.toLocaleString()} characters` : 'AI will create one task with all links as references'}
+                  {text.length > 0 ? `${text.length.toLocaleString()} characters` : 'AI extracts title, tag, and all links'}
                 </p>
                 <p className="text-[11px] text-muted-foreground">
                   <kbd className="px-1.5 py-0.5 rounded border border-border bg-muted/50 font-sans text-[10px]">⌘</kbd>{' '}
@@ -163,11 +172,18 @@ export function AIParseModal({ open, onOpenChange, onCreateTask }: Props) {
 
           {parsed && (
             <div className="p-5 space-y-5">
+              {/* Title */}
               <div>
                 <label className="block text-[11px] font-semibold text-muted-foreground uppercase tracking-wider mb-1.5">Title</label>
-                <Input value={title} onChange={(e) => setTitle(e.target.value)} className="rounded-xl" />
+                <Input
+                  ref={titleRef}
+                  value={title}
+                  onChange={(e) => setTitle(e.target.value)}
+                  className="rounded-xl"
+                />
               </div>
 
+              {/* Tag */}
               <div>
                 <label className="block text-[11px] font-semibold text-muted-foreground uppercase tracking-wider mb-1.5">Tag</label>
                 <div className="flex gap-1 p-1 bg-muted rounded-xl max-w-xs">
@@ -188,17 +204,19 @@ export function AIParseModal({ open, onOpenChange, onCreateTask }: Props) {
                 </div>
               </div>
 
+              {/* Details */}
               <div>
                 <label className="block text-[11px] font-semibold text-muted-foreground uppercase tracking-wider mb-1.5">Details</label>
                 <textarea
                   value={details}
                   onChange={(e) => setDetails(e.target.value)}
                   placeholder="Context, what needs to be done…"
-                  rows={4}
+                  rows={5}
                   className="w-full text-sm bg-muted/30 border border-border rounded-xl px-3.5 py-2.5 resize-none focus:outline-none focus:ring-2 focus:ring-ring/40 focus:border-ring/60 placeholder:text-muted-foreground/60 leading-relaxed transition-shadow"
                 />
               </div>
 
+              {/* References */}
               <div>
                 <div className="flex items-center justify-between mb-1.5">
                   <label className="block text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">
@@ -209,7 +227,7 @@ export function AIParseModal({ open, onOpenChange, onCreateTask }: Props) {
                   </button>
                 </div>
                 {references.length === 0 ? (
-                  <p className="text-xs text-muted-foreground/60 italic px-0.5">No references.</p>
+                  <p className="text-xs text-muted-foreground/60 italic px-0.5">No links found.</p>
                 ) : (
                   <div className="space-y-2">
                     {references.map((ref, i) => (
@@ -263,7 +281,7 @@ export function AIParseModal({ open, onOpenChange, onCreateTask }: Props) {
               <Button variant="ghost" onClick={() => setParsed(null)} className="shrink-0">
                 <ArrowLeft className="w-4 h-4 mr-1.5" /> Back
               </Button>
-              <Button className="flex-1" onClick={handleAdd} disabled={!title.trim()}>
+              <Button className="flex-1" onClick={handleCreate} disabled={!title.trim()}>
                 Create task
               </Button>
             </>
@@ -274,4 +292,9 @@ export function AIParseModal({ open, onOpenChange, onCreateTask }: Props) {
   )
 
   return createPortal(modal, document.body)
+}
+
+function firstLine(text: string): string {
+  const line = text.split('\n').map((s) => s.trim()).find(Boolean) ?? 'Untitled task'
+  return line.length > 80 ? line.slice(0, 80).trimEnd() + '…' : line
 }

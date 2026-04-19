@@ -413,11 +413,17 @@ app.post(
         messages: [
           {
             role: 'system',
-            content: `You extract a single actionable task from pasted text blobs (Slack messages, emails, notes, etc).
+            content: `You extract a single actionable task from pasted text blobs (Slack messages, emails, notes, PR descriptions, etc).
 Return a JSON object with exactly these keys:
 - "title": string — concise, action-oriented task title (e.g. "Review frontend + backend PRs", "Ship auth migration"). 3-8 words ideally.
-- "details": string — a short markdown summary of context, what needs to be done, and any constraints. Keep it tight (1-5 sentences). Empty string if nothing meaningful to add.
-- "references": array of { "title": string, "url": string } — every URL found in the text, with a short descriptive label (e.g. "Frontend PR", "Design doc", "Slack thread"). Include all URLs.
+- "tag": string — either "work" or "personal". Judge from the content: engineering/meetings/PRs/company docs = "work"; errands/health/friends/hobbies/shopping = "personal". If genuinely unclear, default to "work".
+- "details": string — a short markdown summary of context, what needs to be done, and any constraints. Keep it tight (1-5 sentences). Empty string if nothing meaningful to add. Do NOT repeat raw URLs here — those go in references.
+- "references": array of { "title": string, "url": string } — EXTRACT EVERY URL you can find in the text. This includes:
+  * bare URLs (http://… or https://…)
+  * markdown links ([label](url))
+  * HTML anchors (<a href="url">label</a>)
+  * URLs inside parentheses, brackets, or code spans
+  Preserve each URL exactly as written. Use the surrounding text as the label when obvious (e.g. "Frontend PR", "Design doc", "Figma mockup", "Slack thread"); otherwise use the page name or a short descriptor. Deduplicate identical URLs. Never invent URLs that aren't in the source text.
 If no real task is present, still produce a best-effort title summarizing the content and include all URLs as references.`,
           },
           { role: 'user', content: text },
@@ -436,11 +442,14 @@ If no real task is present, still produce a best-effort title summarizing the co
     try {
       const parsed = JSON.parse(content) as {
         title?: string
+        tag?: string
         details?: string
         references?: { title: string; url: string }[]
       }
+      const tag = parsed.tag === 'personal' ? 'personal' : 'work'
       return c.json({
         title: parsed.title ?? '',
+        tag,
         details: parsed.details ?? '',
         references: (parsed.references ?? []).filter((r) => r && r.url),
       })

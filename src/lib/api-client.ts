@@ -181,6 +181,7 @@ export const standaloneNotesApi = {
 
 export type AIParsedResult = {
   title: string
+  tag: 'work' | 'personal'
   details: string
   references: { title: string; url: string }[]
 }
